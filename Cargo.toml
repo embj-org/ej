@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+argon2 = "0.5.3"
 axum = { version = "0.8.3", features = ["macros", "ws"] }
 chrono = { version = "0.4.40", features = ["serde"] }
 diesel = { version = "2.2.10", features = ["uuid", "chrono", "postgres", "r2d2"] }
@@ -14,6 +15,7 @@ headers = "0.4.0"
 jsonwebtoken = "9.3.1"
 log = "0.4.27"
 pretty_env_logger = "0.5.0"
+rand = {version= "0.8.5", features = ["getrandom"]}
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 thiserror = "2.0.12"
@@ -24,3 +26,4 @@ tower-http = { version = "0.6.2", features = ["cors", "trace"] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 uuid = { version = "1.16.0", features = ["v4", "serde"] }
+
