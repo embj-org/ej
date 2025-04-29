@@ -6,7 +6,8 @@ edition = "2024"
 [dependencies]
 axum = { version = "0.8.3", features = ["macros", "ws"] }
 chrono = { version = "0.4.40", features = ["serde"] }
-diesel = { version = "2.2.10", features = ["uuid", "chrono", "postgres"] }
+diesel = { version = "2.2.10", features = ["uuid", "chrono", "postgres", "r2d2"] }
+diesel_migrations = { version = "2.2.0", features = ["postgres"] }
 futures = "0.3.31"
 futures-util = "0.3.31"
 headers = "0.4.0"
@@ -23,4 +24,3 @@ tower-http = { version = "0.6.2", features = ["cors", "trace"] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 uuid = { version = "1.16.0", features = ["v4", "serde"] }
-
