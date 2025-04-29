@@ -1,3 +1,5 @@
+mod auth;
+pub mod db;
 pub mod ej_client;
 pub mod ej_connected_client;
 pub mod ej_message;

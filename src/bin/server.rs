@@ -1,5 +1,5 @@
 use axum::{
-    Router,
+    Json, Router,
     body::Bytes,
     extract::{
         State,
@@ -7,18 +7,22 @@ use axum::{
     },
     middleware,
     response::IntoResponse,
-    routing::any,
+    routing::{any, post},
 };
 use ej::{
+    db::{config::DbConfig, connection::DbConnection},
+    ej_client::api::{EjClientApi, EjClientLogin, EjClientPost},
     ej_connected_client::EjConnectedClient,
     ej_message::{EjClientMessage, EjServerMessage},
+    require_permission,
     web::{
+        auth::{AuthBody, authenticate_and_generate_token},
         ctx::{Ctx, mw_ctx_resolver},
         mw_auth::mw_require_auth,
     },
 };
 use tokio::sync::mpsc::{Receiver, channel};
-use tower_cookies::CookieManagerLayer;
+use tower_cookies::{CookieManagerLayer, Cookies};
 
 use std::net::SocketAddr;
 use tower_http::{
@@ -36,9 +40,22 @@ use ej::prelude::*;
 //allows to split the websocket stream into separate TX and RX branches
 use futures::{sink::SinkExt, stream::StreamExt};
 
-#[derive(Default, Clone)]
+#[derive(Clone)]
 struct ApiState {
     clients: Vec<EjConnectedClient>,
+    connection: DbConnection,
+}
+impl ApiState {
+    pub fn new(connection: DbConnection) -> Self {
+        Self {
+            connection,
+            clients: Vec::new(),
+        }
+    }
+}
+
+fn v1(path: &str) -> String {
+    format!("/v1/{path}")
 }
 
 #[tokio::main]
@@ -52,11 +69,15 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let api_state = ApiState::default();
-    // build our application with some routes
+    let db = DbConnection::new(&DbConfig::from_env());
+    let api_state = ApiState::new(db);
+
     let app = Router::new()
-        .route("/ws", any(builder_handler))
+        .route(&v1("builder/ws"), any(builder_handler))
+        .route_layer(require_permission!("builder"))
         .route_layer(middleware::from_fn(mw_require_auth))
+        .route(&v1("login"), post(login))
+        .route(&v1("client"), post(post_client))
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(DefaultMakeSpan::default().include_headers(true)),
@@ -80,6 +101,26 @@ async fn main() {
     )
     .await
     .unwrap();
+}
+
+#[axum::debug_handler]
+async fn post_client(
+    State(state): State<ApiState>,
+    Json(payload): Json<EjClientPost>,
+) -> Result<Json<EjClientApi>> {
+    Ok(Json(payload.persist(&state.connection)?))
+}
+#[axum::debug_handler]
+async fn login(
+    state: State<ApiState>,
+    cookies: Cookies,
+    Json(payload): Json<EjClientLogin>,
+) -> Result<Json<AuthBody>> {
+    Ok(Json(authenticate_and_generate_token(
+        &payload,
+        &state.connection,
+        &cookies,
+    )?))
 }
 
 /// The handler for the HTTP request (this gets called when the HTTP request lands at the start
@@ -189,12 +230,14 @@ async fn handle_socket(mut socket: WebSocket, who: SocketAddr, mut rx: Receiver<
                 }
                 Message::Close(c) => {
                     if let Some(cf) = c {
-                        println!(
+                        tracing::info!(
                             ">>> {} sent close with code {} and reason `{}`",
-                            who, cf.code, cf.reason
+                            who,
+                            cf.code,
+                            cf.reason
                         );
                     } else {
-                        tracing::info!(">>> {who} somehow sent close message without CloseFrame");
+                        tracing::warn!(">>> {who} somehow sent close message without CloseFrame");
                     }
                     return Ok(());
                 }

@@ -1,20 +1,19 @@
 use std::net::SocketAddr;
 
-use crate::{ej_client::EjClient, ej_message::EjServerMessage};
+use crate::{ej_message::EjServerMessage, web::ctx::CtxClient};
 use tokio::sync::mpsc::Sender;
-use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct EjConnectedClient {
-    pub id: Uuid,
+    pub client: CtxClient,
     pub tx: Sender<EjServerMessage>,
     pub addr: SocketAddr,
 }
 
-impl EjClient {
+impl CtxClient {
     pub fn connect(self, tx: Sender<EjServerMessage>, addr: SocketAddr) -> EjConnectedClient {
         EjConnectedClient {
-            id: self.id,
+            client: self,
             tx,
             addr,
         }

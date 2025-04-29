@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::{ej_client::EjClient, prelude::*};
+use crate::prelude::*;
 use axum::{
     body::Body,
     extract::{FromRequestParts, Request},
@@ -8,29 +8,36 @@ use axum::{
     middleware::Next,
     response::Response,
 };
+use serde::{Deserialize, Serialize};
 use tower_cookies::{Cookie, Cookies};
+use uuid::Uuid;
 
 use super::auth::{AuthError, decode_token};
 
 #[derive(Clone, Debug)]
 pub struct Ctx {
-    pub client: EjClient,
+    pub client: CtxClient,
     pub permissions: HashSet<String>,
 }
 
-const AUTH_TOKEN_COOKIE: &str = "auth-token";
-const AUTH_HEADER: &str = "Authorization";
-const AUTH_HEADER_PREFIX: &str = "Bearer ";
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CtxClient {
+    pub client_id: Uuid,
+    pub client_name: String,
+}
+
+pub const AUTH_TOKEN_COOKIE: &str = "auth-token";
+pub const AUTH_HEADER: &str = "Authorization";
+pub const AUTH_HEADER_PREFIX: &str = "Bearer ";
 
 impl Ctx {
-    pub fn new(client: EjClient) -> Self {
+    pub fn new(client: CtxClient) -> Self {
         Self {
             client,
             permissions: HashSet::new(),
         }
     }
 }
-
 #[axum::debug_middleware]
 pub async fn mw_ctx_resolver(
     cookies: Cookies,

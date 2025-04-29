@@ -27,7 +27,7 @@ pub async fn mw_require_permission(
 #[macro_export]
 macro_rules! require_permission {
     ($permission:expr) => {{
-        use crate::api::mw_auth::mw_require_permission;
+        use ej::web::mw_auth::mw_require_permission;
         axum::middleware::from_fn_with_state($permission, mw_require_permission)
     }};
 }
