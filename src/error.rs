@@ -11,6 +11,13 @@ pub enum Error {
     #[error(transparent)]
     JWT(#[from] jsonwebtoken::errors::Error),
 
+
+    #[error(transparent)]
+    R2D2(#[from] diesel::r2d2::PoolError),
+
+    #[error(transparent)]
+    Diesel(#[from] diesel::result::Error),
+
     /* Api Errors */
     #[error("API Forbidden")]
     ApiForbidden,
@@ -26,6 +33,8 @@ pub enum Error {
     AuthTokenCreation,
     #[error("Wrong Credentials")]
     WrongCredentials,
+    #[error("Missing Credentials")]
+    MissingCredentials,
 
     #[error("Context Missing")]
     CtxMissing,
