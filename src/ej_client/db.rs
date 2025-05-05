@@ -47,11 +47,25 @@ impl EjClient {
 
         Ok(client.into())
     }
+    pub fn fetch_by_name(target: &str, connection: &DbConnection) -> Result<Self> {
+        let conn = &mut connection.pool.get()?;
+
+        let client: EjClient = EjClient::by_name(target)
+            .select(EjClient::as_select())
+            .get_result(conn)?;
+
+        Ok(client.into())
+    }
 }
 
 impl EjClient {
     #[diesel::dsl::auto_type(no_type_alias)]
     pub fn by_id(target: &Uuid) -> _ {
         crate::schema::ejclient::dsl::ejclient.filter(id.eq(target))
+    }
+
+    #[diesel::dsl::auto_type(no_type_alias)]
+    pub fn by_name(target: &str) -> _ {
+        crate::schema::ejclient::dsl::ejclient.filter(name.eq(target))
     }
 }

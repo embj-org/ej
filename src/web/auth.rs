@@ -14,12 +14,12 @@ use super::ctx::CtxClient;
 
 const TOKEN_EXPIRATION_TIME: TimeDelta = TimeDelta::hours(12);
 const COMPANY_NAME: &str = "EJ";
-pub const TOKEN_TYPE: &str = "Bearer";
+pub const TOKEN_TYPE: &'static str = "Bearer";
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct AuthBody {
     pub access_token: String,
-    pub token_type: &'static str,
+    pub token_type: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -56,7 +56,7 @@ impl AuthBody {
     pub fn new(access_token: String) -> Self {
         Self {
             access_token,
-            token_type: TOKEN_TYPE,
+            token_type: String::from(TOKEN_TYPE),
         }
     }
 }
@@ -83,7 +83,7 @@ pub fn authenticate(auth: &EjClientLogin, connection: &DbConnection) -> Result<E
     if auth.secret.is_empty() {
         return Err(Error::MissingCredentials);
     }
-    let client = EjClient::fetch_by_id(&auth.id, connection)?;
+    let client = EjClient::fetch_by_name(&auth.name, connection)?;
     let is_valid = is_secret_valid(&auth.secret, &client.hash)?;
     if !is_valid {
         return Err(Error::WrongCredentials);

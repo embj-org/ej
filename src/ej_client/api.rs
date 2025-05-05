@@ -18,7 +18,7 @@ pub struct EjClientPost {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct EjClientLogin {
-    pub id: Uuid,
+    pub name: String,
     pub secret: String,
 }
 
