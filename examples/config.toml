@@ -1,0 +1,52 @@
+# Build Configuration File
+# This file defines boards and their configurations for building and running jobs
+
+# Global settings
+[global]
+version = "1.0.0"
+
+
+# Boards
+[[boards]]
+name = "Raspberry Pi 3"
+description = "Raspberry Pi 3 Model B+"
+
+[[boards.configs]]
+board = "rpi3"
+description = "Rpi3 Wayland"
+tags = ["wayland", "arm64"]
+build_script = "/home/work/rpi/wayland/scripts/build_rpi4_wayland.sh"
+run_script = "/home/work/rpi/wayland/scripts/run_rpi4_wayland.sh"
+results_path = "/home/work/rpi/wayland/results/results.json"
+library_path = "/home/work/rpi/wayland/lib"
+
+[[boards.configs]]
+board = "rpi3"
+description = "Rpi3 SDL"
+tags = ["sdl2", "arm64"]
+build_script = "/home/work/rpi/sdl/scripts/build_rpi4_wayland.sh"
+run_script = "/home/work/rpi/sdl/scripts/run_rpi4_wayland.sh"
+results_path = "/home/work/rpi/sdl/results/results.json"
+library_path = "/home/work/rpi/sdl/lib"
+
+[[boards]]
+name = "x86 PC running Fedora 41"
+description = "AMD Ryzen 5 3600 desktop with NVIDIA GTX 1650"
+
+[[boards.configs]]
+board = "x86_desktop"
+description = "Wayland build for desktop"
+tags = ["wayland", "x86_64"]
+build_script = "/home/work/x86/wayland/scripts/build_rpi4_wayland.sh"
+run_script = "/home/work/x86/wayland/scripts/run_rpi4_wayland.sh"
+results_path = "/home/work/x86/wayland/results/results.json"
+library_path = "/home/work/x86/wayland/lib"
+
+[[boards.configs]]
+board = "x86_desktop"
+description = "X11 build for desktop"
+tags = ["x11", "x86_64"]
+build_script = "/home/work/x86/x11/scripts/build_rpi4_wayland.sh"
+run_script = "/home/work/x86/x11/scripts/run_rpi4_wayland.sh"
+results_path = "/home/work/x86/x11/results/results.json"
+library_path = "/home/work/x86/x11/lib"

@@ -20,6 +20,9 @@ pub enum Error {
     #[error(transparent)]
     Diesel(#[from] diesel::result::Error),
 
+    #[error(transparent)]
+    Toml(#[from] toml::de::Error),
+
     /* Api Errors */
     #[error("API Forbidden")]
     ApiForbidden,

@@ -5,17 +5,12 @@ use serde_json::json;
 impl IntoResponse for Error {
     fn into_response(self) -> axum::response::Response {
         let (status, message) = match self {
-            // Auth-related errors
             Error::AuthTokenMissing => (StatusCode::UNAUTHORIZED, "Authentication required"),
             Error::AuthTokenExpired => (StatusCode::UNAUTHORIZED, "Authentication token expired"),
             Error::AuthInvalidToken => (StatusCode::UNAUTHORIZED, "Invalid authentication token"),
             Error::WrongCredentials => (StatusCode::UNAUTHORIZED, "Invalid credentials"),
             Error::MissingCredentials => (StatusCode::UNAUTHORIZED, "Missing credentials"),
-
-            // Permission-related errors
             Error::ApiForbidden => (StatusCode::FORBIDDEN, "Access forbidden"),
-
-            // Internal errors - hide details
             Error::AuthTokenCreation
             | Error::Generic(_)
             | Error::IO(_)
@@ -23,7 +18,8 @@ impl IntoResponse for Error {
             | Error::PasswordHash(_)
             | Error::R2D2(_)
             | Error::Diesel(_)
-            | Error::CtxMissing => (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error"),
+            | Error::CtxMissing
+            | Error::Toml(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error"),
         };
 
         let body = Json(json!({
