@@ -72,12 +72,18 @@ async fn main() {
     let db = DbConnection::new(&DbConfig::from_env());
     let api_state = ApiState::new(db);
 
-    let app = Router::new()
+    let builder_routes = Router::new()
         .route(&v1("builder/ws"), any(builder_handler))
         .route_layer(require_permission!("builder"))
-        .route_layer(middleware::from_fn(mw_require_auth))
+        .route_layer(middleware::from_fn(mw_require_auth));
+
+    let client_routes = Router::new()
         .route(&v1("login"), post(login))
-        .route(&v1("client"), post(post_client))
+        .route(&v1("client"), post(post_client));
+
+    let app = Router::new()
+        .merge(builder_routes)
+        .merge(client_routes)
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(DefaultMakeSpan::default().include_headers(true)),
@@ -110,6 +116,7 @@ async fn post_client(
 ) -> Result<Json<EjClientApi>> {
     Ok(Json(payload.persist(&state.connection)?))
 }
+
 #[axum::debug_handler]
 async fn login(
     state: State<ApiState>,
