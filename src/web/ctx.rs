@@ -23,7 +23,6 @@ pub struct Ctx {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CtxClient {
     pub client_id: Uuid,
-    pub client_name: String,
 }
 
 pub const AUTH_TOKEN_COOKIE: &str = "auth-token";
@@ -31,10 +30,10 @@ pub const AUTH_HEADER: &str = "Authorization";
 pub const AUTH_HEADER_PREFIX: &str = "Bearer ";
 
 impl Ctx {
-    pub fn new(client: CtxClient) -> Self {
+    pub fn new(client_id: Uuid, permissions: HashSet<String>) -> Self {
         Self {
-            client,
-            permissions: HashSet::new(),
+            client: CtxClient { client_id },
+            permissions,
         }
     }
 }
@@ -65,7 +64,7 @@ pub async fn mw_ctx_resolver(
             }
         });
 
-    let ctx = token.map(|token| Ctx::new(token.sub));
+    let ctx = token.map(|token| Ctx::new(token.sub, token.permissions));
 
     if ctx.is_err() {
         cookies.remove(Cookie::from(AUTH_TOKEN_COOKIE));

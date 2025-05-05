@@ -1,9 +1,11 @@
 mod auth;
 pub mod db;
 pub mod ej_client;
+mod ej_client_permission;
 pub mod ej_connected_client;
 pub mod ej_message;
 mod error;
+mod permission;
 pub mod prelude;
 mod schema;
 pub mod web;

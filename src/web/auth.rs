@@ -1,19 +1,23 @@
-use chrono::TimeDelta;
+use std::collections::HashSet;
+
+use chrono::{TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
 use tower_cookies::{Cookie, Cookies};
+use uuid::Uuid;
 
 use crate::auth::jwt::{jwt_decode, jwt_encode};
 use crate::auth::secret_hash::is_secret_valid;
 use crate::db::connection::DbConnection;
 use crate::ej_client::api::{EjClientApi, EjClientLogin};
 use crate::ej_client::db::EjClient;
+use crate::permission::Permission;
 use crate::prelude::*;
 
 use super::ctx::AUTH_TOKEN_COOKIE;
 use super::ctx::CtxClient;
 
 const TOKEN_EXPIRATION_TIME: TimeDelta = TimeDelta::hours(12);
-const COMPANY_NAME: &str = "EJ";
+const ISS: &str = "EJ";
 pub const TOKEN_TYPE: &'static str = "Bearer";
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -24,9 +28,17 @@ pub struct AuthBody {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AuthToken {
-    pub sub: CtxClient,
-    pub company: String,
+    pub sub: Uuid,
+    pub iss: String,
     pub exp: i64,
+    pub iat: i64,
+    pub nbf: i64,
+    pub jti: Uuid,
+
+    pub permissions: HashSet<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_data: Option<CtxClient>,
 }
 
 #[derive(Debug, thiserror::Error, Clone)]
@@ -62,24 +74,32 @@ impl AuthBody {
 }
 
 impl AuthToken {
-    pub fn new(client: &EjClientApi, token_duration: TimeDelta) -> Result<Self> {
+    pub fn new(
+        client: &EjClientApi,
+        client_permissions: Vec<Permission>,
+        token_duration: TimeDelta,
+    ) -> Result<Self> {
         let expiration = chrono::Utc::now()
             .checked_add_signed(token_duration)
             .ok_or_else(|| Error::AuthTokenCreation)?;
 
-        let sub = CtxClient {
-            client_id: client.id,
-            client_name: client.name.clone(),
-        };
         Ok(Self {
-            sub,
-            company: String::from(COMPANY_NAME),
+            sub: client.id,
             exp: expiration.timestamp(),
+            iat: Utc::now().timestamp(),
+            nbf: Utc::now().timestamp(),
+            iss: String::from(ISS),
+            jti: Uuid::new_v4(),
+            permissions: client_permissions.iter().map(|p| p.id.clone()).collect(),
+            client_data: None,
         })
     }
 }
 
-pub fn authenticate(auth: &EjClientLogin, connection: &DbConnection) -> Result<EjClientApi> {
+pub fn authenticate(
+    auth: &EjClientLogin,
+    connection: &DbConnection,
+) -> Result<(EjClientApi, Vec<Permission>)> {
     if auth.secret.is_empty() {
         return Err(Error::MissingCredentials);
     }
@@ -88,7 +108,8 @@ pub fn authenticate(auth: &EjClientLogin, connection: &DbConnection) -> Result<E
     if !is_valid {
         return Err(Error::WrongCredentials);
     }
-    Ok(client.into())
+    let permissions = client.fetch_permissions(connection)?;
+    Ok((client.into(), permissions))
 }
 
 pub fn authenticate_and_generate_token(
@@ -96,15 +117,15 @@ pub fn authenticate_and_generate_token(
     connection: &DbConnection,
     cookies: &Cookies,
 ) -> Result<AuthBody> {
-    let user = authenticate(auth, connection)?;
-    let token = generate_token(&user)?;
+    let (client, permissions) = authenticate(auth, connection)?;
+    let token = generate_token(&client, permissions)?;
     cookies.add(Cookie::new(AUTH_TOKEN_COOKIE, token.access_token.clone()));
 
     Ok(token)
 }
 
-pub fn generate_token(client: &EjClientApi) -> Result<AuthBody> {
-    let claims = AuthToken::new(client, TOKEN_EXPIRATION_TIME)?;
+pub fn generate_token(client: &EjClientApi, permissions: Vec<Permission>) -> Result<AuthBody> {
+    let claims = AuthToken::new(client, permissions, TOKEN_EXPIRATION_TIME)?;
     encode_token(&claims)
 }
 

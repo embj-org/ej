@@ -1,3 +1,5 @@
+use crate::ej_client_permission::ClientPermission;
+use crate::permission::Permission;
 use crate::prelude::*;
 use crate::{db::connection::DbConnection, schema::ejclient::dsl::*};
 use chrono::{DateTime, Utc};
@@ -55,6 +57,9 @@ impl EjClient {
             .get_result(conn)?;
 
         Ok(client.into())
+    }
+    pub fn fetch_permissions(&self, connection: &DbConnection) -> Result<Vec<Permission>> {
+        Ok(ClientPermission::fetch_by_client(connection, self)?.1)
     }
 }
 
