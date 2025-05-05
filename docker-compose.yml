@@ -1,8 +1,6 @@
 services:
   postgresql:
-    image: docker.io/postgres:17-alpine
-    container_name: ej-dev-db
-    env_file: .env
+    image: docker.io/bitnami/postgresql:latest
+    env_file: ./dev-config/dev.env
     ports:
-      - 5432:5432
-    command: ["postgres", "-c", "log_statement=all"]
+      - 127.0.0.1:5432:5432
