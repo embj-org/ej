@@ -59,6 +59,18 @@ impl ApiClient {
         Ok(serde_json::from_str(&response)?)
     }
 
+    pub async fn post_no_body<T: DeserializeOwned>(
+        &self,
+        client: &reqwest::Client,
+        endpoint: &str,
+    ) -> Result<T, Box<dyn Error>> {
+        let url = reqwest::Url::from_str(&self.path(endpoint)).unwrap();
+
+        let response = client.post(url).send().await?.text().await?;
+
+        Ok(serde_json::from_str(&response)?)
+    }
+
     pub async fn delete<I, K, V>(
         &self,
         client: &reqwest::Client,

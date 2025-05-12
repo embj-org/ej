@@ -2,10 +2,7 @@ use std::error::Error;
 
 use common::{EJD, test_context::TestContext};
 use diesel::prelude::*;
-use ej::{
-    ej_client::api::{EjClientApi, EjClientLogin, EjClientPost},
-    web::auth::AuthBody,
-};
+use ej::ej_client::api::{EjClientApi, EjClientLogin, EjClientLoginRequest, EjClientPost};
 use serial_test::serial;
 
 mod common;
@@ -34,13 +31,13 @@ async fn test_create_user() -> Result<(), Box<dyn Error>> {
     let post_result: EjClientApi = EJD.post(&client, "client", payload).await?;
     assert_eq!(new_client.name, post_result.name);
 
-    let login_body = EjClientLogin {
+    let login_body = EjClientLoginRequest {
         name: new_client.name,
         secret: new_client.secret,
     };
 
     let payload = serde_json::to_string(&login_body)?;
-    let _login_result: AuthBody = EJD.post(&client, "login", payload).await?;
+    let _login_result: EjClientLogin = EJD.post(&client, "login", payload).await?;
 
     Ok(())
 }
