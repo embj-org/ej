@@ -1,6 +1,5 @@
 use crate::db::connection::DbConnection;
 use crate::prelude::*;
-use chrono::{DateTime, Utc};
 use diesel::prelude::*;
 
 #[derive(Debug, Clone, Queryable, Selectable, Identifiable, Hash, PartialEq, Eq)]
@@ -9,6 +8,7 @@ use diesel::prelude::*;
 pub struct Permission {
     pub id: String,
 }
+
 impl From<&str> for Permission {
     fn from(value: &str) -> Self {
         Self {
@@ -18,6 +18,10 @@ impl From<&str> for Permission {
 }
 
 impl Permission {
+    pub const fn new(id: String) -> Self {
+        Permission { id }
+    }
+
     fn fetch_all(conn: &DbConnection) -> Result<Vec<Self>> {
         let conn = &mut conn.pool.get()?;
         Ok(crate::schema::permission::table.load(conn)?)
