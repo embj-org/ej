@@ -11,13 +11,13 @@ use axum::{
 };
 use ej::{
     db::{config::DbConfig, connection::DbConnection},
-    ej_client::api::{EjClientApi, EjClientLogin, EjClientPost},
+    ej_builder::api::EjBuilderApi,
+    ej_client::api::{EjClientApi, EjClientLogin, EjClientLoginRequest, EjClientPost},
     ej_connected_client::EjConnectedClient,
     ej_message::{EjClientMessage, EjServerMessage},
     require_permission,
     web::{
-        auth::{AuthBody, authenticate_and_generate_token},
-        ctx::{Ctx, mw_ctx_resolver},
+        ctx::{Ctx, login_client, mw_ctx_resolver},
         mw_auth::mw_require_auth,
     },
 };
@@ -74,16 +74,23 @@ async fn main() {
 
     let builder_routes = Router::new()
         .route(&v1("builder/ws"), any(builder_handler))
-        .route_layer(require_permission!("builder"))
+        .route_layer(require_permission!("builder.connect"))
+        .route_layer(middleware::from_fn(mw_require_auth));
+
+    let client_protected_routes = Router::new()
+        .route(&v1("client/builder"), post(create_builder))
+        .route_layer(require_permission!("builder.create"))
         .route_layer(middleware::from_fn(mw_require_auth));
 
     let client_routes = Router::new()
         .route(&v1("login"), post(login))
+        /* TODO: Move this to protected routes*/
         .route(&v1("client"), post(post_client));
 
     let app = Router::new()
         .merge(builder_routes)
         .merge(client_routes)
+        .merge(client_protected_routes)
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(DefaultMakeSpan::default().include_headers(true)),
@@ -118,16 +125,17 @@ async fn post_client(
 }
 
 #[axum::debug_handler]
+async fn create_builder(State(mut state): State<ApiState>, ctx: Ctx) -> Result<Json<EjBuilderApi>> {
+    Ok(Json(ctx.client.create_builder(&mut state.connection)?))
+}
+
+#[axum::debug_handler]
 async fn login(
     state: State<ApiState>,
     cookies: Cookies,
-    Json(payload): Json<EjClientLogin>,
-) -> Result<Json<AuthBody>> {
-    Ok(Json(authenticate_and_generate_token(
-        &payload,
-        &state.connection,
-        &cookies,
-    )?))
+    Json(payload): Json<EjClientLoginRequest>,
+) -> Result<Json<EjClientLogin>> {
+    Ok(Json(login_client(&payload, &state.connection, &cookies)?))
 }
 
 /// The handler for the HTTP request (this gets called when the HTTP request lands at the start

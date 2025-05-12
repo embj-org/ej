@@ -1,6 +1,12 @@
 use std::collections::HashSet;
 
-use crate::prelude::*;
+use crate::{
+    auth::auth::{AuthError, AuthToken, authenticate, decode_token},
+    ctx::ctx_client::CtxClient,
+    db::connection::DbConnection,
+    ej_client::api::{EjClientLogin, EjClientLoginRequest},
+    prelude::*,
+};
 use axum::{
     body::Body,
     extract::{FromRequestParts, Request},
@@ -8,21 +14,13 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use serde::{Deserialize, Serialize};
 use tower_cookies::{Cookie, Cookies};
 use uuid::Uuid;
-
-use super::auth::{AuthError, decode_token};
 
 #[derive(Clone, Debug)]
 pub struct Ctx {
     pub client: CtxClient,
     pub permissions: HashSet<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CtxClient {
-    pub client_id: Uuid,
 }
 
 pub const AUTH_TOKEN_COOKIE: &str = "auth-token";
@@ -64,7 +62,7 @@ pub async fn mw_ctx_resolver(
             }
         });
 
-    let ctx = token.map(|token| Ctx::new(token.sub, token.permissions));
+    let ctx = token.map(|token: AuthToken| Ctx::new(token.sub, token.permissions));
 
     if ctx.is_err() {
         cookies.remove(Cookie::from(AUTH_TOKEN_COOKIE));
@@ -72,6 +70,18 @@ pub async fn mw_ctx_resolver(
     req.extensions_mut().insert(ctx);
 
     next.run(req).await
+}
+
+pub fn login_client(
+    auth: &EjClientLoginRequest,
+    connection: &DbConnection,
+    cookies: &Cookies,
+) -> Result<EjClientLogin> {
+    let (client, permissions) = authenticate(auth, connection)?;
+    let token = client.generate_token(permissions)?;
+    cookies.add(Cookie::new(AUTH_TOKEN_COOKIE, token.access_token.clone()));
+
+    Ok(token.into())
 }
 
 impl<S: Send + Sync> FromRequestParts<S> for Ctx {

@@ -1,4 +1,5 @@
-mod auth;
+pub mod auth;
+pub mod ctx;
 pub mod db;
 pub mod ej_builder;
 pub mod ej_client;

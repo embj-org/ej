@@ -16,16 +16,28 @@ pub struct EjBuilder {
     pub updated_at: DateTime<Utc>,
 }
 
-impl EjBuilder {
-    pub fn create(self, connection: &DbConnection) -> Result<Self> {
+#[derive(Insertable, PartialEq, Debug, Clone, Deserialize)]
+#[diesel(table_name = crate::schema::ejbuilder)]
+pub struct EjBuilderCreate {
+    pub ejclient_id: Uuid,
+}
+
+impl EjBuilderCreate {
+    pub fn new(client_id: Uuid) -> Self {
+        Self {
+            ejclient_id: client_id,
+        }
+    }
+    pub fn create(self, connection: &DbConnection) -> Result<EjBuilder> {
         let conn = &mut connection.pool.get()?;
 
         Ok(diesel::insert_into(ejbuilder)
-            .default_values()
+            .values(self)
             .returning(EjBuilder::as_returning())
-            .get_result(conn)?
-            .into())
+            .get_result(conn)?)
     }
+}
+impl EjBuilder {
     pub fn fetch_by_id(target: &Uuid, connection: &DbConnection) -> Result<Self> {
         let conn = &mut connection.pool.get()?;
 
