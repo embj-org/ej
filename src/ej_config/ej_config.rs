@@ -1,23 +1,34 @@
+use crate::prelude::*;
+use std::path::Path;
+
 use serde::{Deserialize, Serialize};
 
 use super::ej_board::EjBoard;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EjGlobalConfig {
     pub version: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EjConfig {
     pub global: EjGlobalConfig,
     pub boards: Vec<EjBoard>,
+}
+impl EjConfig {
+    pub fn from_file(file_path: &Path) -> Result<Self> {
+        let contents = std::fs::read_to_string(file_path)?;
+        Ok(Self::from_toml(&contents)?)
+    }
+    pub fn from_toml(value: &str) -> Result<Self> {
+        Ok(toml::from_str(value)?)
+    }
 }
 
 #[cfg(test)]
 mod tests {
 
     use super::*;
-    use crate::prelude::*;
 
     #[test]
     pub fn deserialize() -> Result<()> {

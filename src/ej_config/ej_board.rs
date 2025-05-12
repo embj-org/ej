@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use super::ej_board_config::EjBoardConfig;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EjBoard {
     pub name: String,
     pub description: String,
