@@ -10,6 +10,15 @@ diesel::table! {
 }
 
 diesel::table! {
+    ejbuilder (id) {
+        id -> Uuid,
+        ejclient_id -> Uuid,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
     ejclient (id) {
         id -> Uuid,
         name -> Varchar,
@@ -29,5 +38,11 @@ diesel::table! {
 
 diesel::joinable!(client_permission -> ejclient (ejclient_id));
 diesel::joinable!(client_permission -> permission (permission_id));
+diesel::joinable!(ejbuilder -> ejclient (ejclient_id));
 
-diesel::allow_tables_to_appear_in_same_query!(client_permission, ejclient, permission,);
+diesel::allow_tables_to_appear_in_same_query!(
+    client_permission,
+    ejbuilder,
+    ejclient,
+    permission,
+);
