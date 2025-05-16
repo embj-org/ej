@@ -14,7 +14,7 @@ use ej::{
     ej_builder::api::EjBuilderApi,
     ej_client::api::{EjClientApi, EjClientLogin, EjClientLoginRequest, EjClientPost},
     ej_config::ej_config::EjConfig,
-    ej_connected_client::EjConnectedClient,
+    ej_connected_builder::EjConnectedBuilder,
     ej_message::{EjClientMessage, EjServerMessage},
     require_permission,
     web::{
@@ -43,14 +43,14 @@ use futures::{sink::SinkExt, stream::StreamExt};
 
 #[derive(Clone)]
 struct ApiState {
-    clients: Vec<EjConnectedClient>,
+    builders: Vec<EjConnectedBuilder>,
     connection: DbConnection,
 }
 impl ApiState {
     pub fn new(connection: DbConnection) -> Self {
         Self {
             connection,
-            clients: Vec::new(),
+            builders: Vec::new(),
         }
     }
 }
@@ -168,7 +168,7 @@ async fn builder_handler(
     println!("Client at {addr} connected.");
     let (tx, rx) = channel(2);
 
-    state.clients.push(ctx.client.connect(tx, addr));
+    state.builders.push(ctx.client.connect(tx, addr));
     ws.on_upgrade(move |socket| handle_socket(socket, addr, rx))
 }
 
