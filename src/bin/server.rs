@@ -74,7 +74,7 @@ async fn main() {
 
     let builder_routes = Router::new()
         .route(&v1("builder/ws"), any(builder_handler))
-        .route_layer(require_permission!("builder.connect"))
+        .route_layer(require_permission!("builder"))
         .route_layer(middleware::from_fn(mw_require_auth));
 
     let client_protected_routes = Router::new()
