@@ -207,7 +207,7 @@ async fn handle_socket(mut socket: WebSocket, who: SocketAddr, mut rx: Receiver<
                 "Couldn't receive data from channel",
             )))?;
 
-            let is_close = message == EjServerMessage::Close;
+            let is_close = matches!(message, EjServerMessage::Close);
 
             if is_close {
                 println!("Sending close to {who}...");

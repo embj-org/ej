@@ -1,9 +1,10 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, PartialEq, Eq)]
+use crate::ej_job::api::EjJob;
+
+#[derive(Debug, Serialize)]
 pub enum EjServerMessage {
-    Build,
-    Run,
+    Run(EjJob),
     Close,
 }
 

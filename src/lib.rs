@@ -6,6 +6,7 @@ pub mod ej_client;
 mod ej_client_permission;
 pub mod ej_config;
 pub mod ej_connected_builder;
+pub mod ej_job;
 pub mod ej_message;
 mod error;
 mod permission;
