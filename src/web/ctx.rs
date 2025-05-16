@@ -4,6 +4,7 @@ use crate::{
     crypto::auth::{AuthError, AuthToken, authenticate, decode_token},
     ctx::ctx_client::CtxClient,
     db::connection::DbConnection,
+    ej_builder::api::EjBuilderApi,
     ej_client::api::{EjClientLogin, EjClientLoginRequest},
     prelude::*,
 };
@@ -70,6 +71,11 @@ pub async fn mw_ctx_resolver(
     req.extensions_mut().insert(ctx);
 
     next.run(req).await
+}
+
+pub fn login_builder(auth: EjBuilderApi, cookies: &Cookies) -> Result<EjBuilderApi> {
+    cookies.add(Cookie::new(AUTH_TOKEN_COOKIE, auth.token.clone()));
+    Ok(auth)
 }
 
 pub fn login_client(

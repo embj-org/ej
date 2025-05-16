@@ -7,7 +7,7 @@ use axum::{
     },
     middleware,
     response::IntoResponse,
-    routing::{any, get, post},
+    routing::{any, post},
 };
 use ej::{
     db::{config::DbConfig, connection::DbConnection},
@@ -18,7 +18,7 @@ use ej::{
     ej_message::{EjClientMessage, EjServerMessage},
     require_permission,
     web::{
-        ctx::{Ctx, login_client, mw_ctx_resolver},
+        ctx::{Ctx, login_builder, login_client, mw_ctx_resolver},
         mw_auth::mw_require_auth,
     },
 };
@@ -86,6 +86,7 @@ async fn main() {
 
     let client_routes = Router::new()
         .route(&v1("login"), post(login))
+        .route(&v1("builder/login"), post(login_builder_api))
         /* TODO: Move this to protected routes*/
         .route(&v1("client"), post(post_client));
 
@@ -138,6 +139,14 @@ async fn login(
     Json(payload): Json<EjClientLoginRequest>,
 ) -> Result<Json<EjClientLogin>> {
     Ok(Json(login_client(&payload, &state.connection, &cookies)?))
+}
+
+#[axum::debug_handler]
+async fn login_builder_api(
+    cookies: Cookies,
+    Json(payload): Json<EjBuilderApi>,
+) -> Result<Json<EjBuilderApi>> {
+    Ok(Json(login_builder(payload, &cookies)?))
 }
 
 #[axum::debug_handler]
