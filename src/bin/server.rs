@@ -7,12 +7,13 @@ use axum::{
     },
     middleware,
     response::IntoResponse,
-    routing::{any, post},
+    routing::{any, get, post},
 };
 use ej::{
     db::{config::DbConfig, connection::DbConnection},
     ej_builder::api::EjBuilderApi,
     ej_client::api::{EjClientApi, EjClientLogin, EjClientLoginRequest, EjClientPost},
+    ej_config::ej_config::EjConfig,
     ej_connected_client::EjConnectedClient,
     ej_message::{EjClientMessage, EjServerMessage},
     require_permission,
@@ -74,6 +75,7 @@ async fn main() {
 
     let builder_routes = Router::new()
         .route(&v1("builder/ws"), any(builder_handler))
+        .route(&v1("builder/config"), post(post_builder_config))
         .route_layer(require_permission!("builder"))
         .route_layer(middleware::from_fn(mw_require_auth));
 
@@ -136,6 +138,17 @@ async fn login(
     Json(payload): Json<EjClientLoginRequest>,
 ) -> Result<Json<EjClientLogin>> {
     Ok(Json(login_client(&payload, &state.connection, &cookies)?))
+}
+
+#[axum::debug_handler]
+async fn post_builder_config(
+    State(mut state): State<ApiState>,
+    ctx: Ctx,
+    Json(payload): Json<EjConfig>,
+) -> Result<Json<EjConfig>> {
+    Ok(Json(
+        payload.create(&ctx.client.client_id, &mut state.connection)?,
+    ))
 }
 
 /// The handler for the HTTP request (this gets called when the HTTP request lands at the start
