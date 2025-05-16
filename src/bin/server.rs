@@ -15,6 +15,7 @@ use ej::{
     ej_client::api::{EjClientApi, EjClientLogin, EjClientLoginRequest, EjClientPost},
     ej_config::ej_config::EjConfig,
     ej_connected_builder::EjConnectedBuilder,
+    ej_job::api::EjJob,
     ej_message::{EjClientMessage, EjServerMessage},
     require_permission,
     web::{
@@ -81,6 +82,7 @@ async fn main() {
 
     let client_protected_routes = Router::new()
         .route(&v1("client/builder"), post(create_builder))
+        .route(&v1("client/dispatch"), post(dispatch_job))
         .route_layer(require_permission!("builder.create"))
         .route_layer(middleware::from_fn(mw_require_auth));
 
@@ -153,6 +155,18 @@ async fn post_builder_config(
     Ok(Json(
         payload.create(&ctx.client.client_id, &mut state.connection)?,
     ))
+}
+async fn dispatch_job(
+    State(mut state): State<ApiState>,
+    Json(payload): Json<EjJob>,
+) -> Result<Json<EjJob>> {
+    for builder in state.builders {
+        if let Err(err) = builder.tx.send(EjServerMessage::Run(payload.clone())).await {
+            tracing::error!("Failed to dispatch job {err}");
+        }
+    }
+
+    Ok(Json(payload.create(&mut state.connection)?))
 }
 
 /// The handler for the HTTP request (this gets called when the HTTP request lands at the start
