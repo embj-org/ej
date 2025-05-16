@@ -119,7 +119,6 @@ async fn main() {
     .unwrap();
 }
 
-#[axum::debug_handler]
 async fn post_client(
     State(state): State<ApiState>,
     Json(payload): Json<EjClientPost>,
@@ -127,12 +126,10 @@ async fn post_client(
     Ok(Json(payload.persist(&state.connection)?))
 }
 
-#[axum::debug_handler]
 async fn create_builder(State(mut state): State<ApiState>, ctx: Ctx) -> Result<Json<EjBuilderApi>> {
     Ok(Json(ctx.client.create_builder(&mut state.connection)?))
 }
 
-#[axum::debug_handler]
 async fn login(
     state: State<ApiState>,
     cookies: Cookies,
@@ -141,7 +138,6 @@ async fn login(
     Ok(Json(login_client(&payload, &state.connection, &cookies)?))
 }
 
-#[axum::debug_handler]
 async fn login_builder_api(
     cookies: Cookies,
     Json(payload): Json<EjBuilderApi>,
@@ -149,7 +145,6 @@ async fn login_builder_api(
     Ok(Json(login_builder(payload, &cookies)?))
 }
 
-#[axum::debug_handler]
 async fn post_builder_config(
     State(mut state): State<ApiState>,
     ctx: Ctx,
