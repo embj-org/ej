@@ -1,10 +1,28 @@
 use std::{error::Error, path::Path};
 
+use common::{EJD, test_context::TestContext};
+use diesel::prelude::*;
 use ej::ej_config::{
     ej_board::EjBoard,
     ej_board_config::EjBoardConfig,
     ej_config::{EjConfig, EjGlobalConfig},
 };
+
+mod common;
+
+fn setup_database(connection: &mut PgConnection) {
+    const QUERIES: [&str; 3] = [
+        "INSERT INTO permission (id) VALUES ('builder.create');",
+        "INSERT INTO ejclient (name, hash) VALUES ('root', '$argon2id$v=19$m=19456,t=2,p=1$C4ZIwZW3k3Lec4ml/LlXhg$o5GwzCUQKicsKHfJvLAyL2GSyx9topN12vgZA4avM+g');",
+        "INSERT INTO client_permission (ejclient_id, permission_id) VALUES ((SELECT id FROM ejclient WHERE name = 'root'), 'builder.create')",
+    ];
+    for query in QUERIES {
+        let query = diesel::sql_query(query);
+        query
+            .execute(connection)
+            .expect("Couldn't insert values to database");
+    }
+}
 
 #[tokio::test]
 async fn test_from_file() -> Result<(), Box<dyn Error>> {
@@ -67,4 +85,20 @@ async fn test_from_file() -> Result<(), Box<dyn Error>> {
     let config = EjConfig::from_file(Path::new("examples/config.toml"))?;
     assert_eq!(config, expected_config);
     Ok(())
+}
+
+#[tokio::test]
+async fn test_send_to_server() {
+    let (mut db, client) = TestContext::from_env();
+    setup_database(&mut db.conn);
+
+    let config =
+        EjConfig::from_file(Path::new("examples/config.toml")).expect("parsing from file failed");
+    let payload = serde_json::to_string(&config).expect("json serialization failed");
+
+    let post_result: EjConfig = EJD
+        .post(&client, "builder/config", payload)
+        .await
+        .expect("post failed");
+    assert_eq!(post_result, config);
 }
