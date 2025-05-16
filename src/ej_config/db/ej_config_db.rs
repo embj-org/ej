@@ -12,6 +12,7 @@ use uuid::Uuid;
 pub struct EjConfigDb {
     pub id: Uuid,
     pub ejclient_id: Uuid,
+    pub hash: String,
     pub version: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -22,6 +23,7 @@ pub struct EjConfigDb {
 pub struct NewEjConfigDb {
     pub ejclient_id: Uuid,
     pub version: String,
+    pub hash: String,
 }
 
 impl EjConfigDb {
@@ -38,10 +40,11 @@ impl EjConfigDb {
 }
 
 impl NewEjConfigDb {
-    pub fn new(client_id: Uuid, config_version: String) -> Self {
+    pub fn new(client_id: Uuid, config_version: String, config_hash: String) -> Self {
         Self {
             ejclient_id: client_id,
             version: config_version,
+            hash: config_hash,
         }
     }
     pub fn save(self, connection: &mut DbConnection) -> Result<EjConfigDb> {

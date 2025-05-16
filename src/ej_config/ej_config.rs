@@ -2,7 +2,7 @@ use crate::{
     crypto::sha256::generate_hash,
     db::connection::DbConnection,
     ej_config::db::{
-        ej_board_config_tag_db::{EjBoardConfigTag, NewEjBoardConfigTag},
+        ej_board_config_tag_db::NewEjBoardConfigTag,
         ej_tag::{EjTag, NewEjTag},
     },
     prelude::*,
@@ -50,7 +50,7 @@ impl EjConfig {
         info!("Config with hash {hash} not found for client {client_id}. Creating one...");
 
         let result = self.clone();
-        let config = NewEjConfigDb::new(*client_id, self.global.version).save(conn)?;
+        let config = NewEjConfigDb::new(*client_id, self.global.version, hash).save(conn)?;
         for board in self.boards {
             let board_db =
                 NewEjBoardDb::new(config.id.clone(), board.name, board.description).save(conn)?;
