@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::{
-    auth::auth::{AuthError, AuthToken, authenticate, decode_token},
+    crypto::auth::{AuthError, AuthToken, authenticate, decode_token},
     ctx::ctx_client::CtxClient,
     db::connection::DbConnection,
     ej_client::api::{EjClientLogin, EjClientLoginRequest},

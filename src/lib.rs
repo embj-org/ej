@@ -1,4 +1,4 @@
-pub mod auth;
+pub mod crypto;
 pub mod ctx;
 pub mod db;
 pub mod ej_builder;

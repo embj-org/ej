@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::{
-    auth::auth::{AuthToken, encode_token},
+    crypto::auth::{AuthToken, encode_token},
     prelude::*,
 };
 use chrono::TimeDelta;

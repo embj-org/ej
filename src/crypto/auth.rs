@@ -4,8 +4,8 @@ use chrono::{TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::auth::jwt::{jwt_decode, jwt_encode};
-use crate::auth::secret_hash::is_secret_valid;
+use crate::crypto::jwt::{jwt_decode, jwt_encode};
+use crate::crypto::secret_hash::is_secret_valid;
 use crate::ctx::ctx_client::CtxClient;
 use crate::db::connection::DbConnection;
 use crate::ej_client::api::{EjClientApi, EjClientLoginRequest};

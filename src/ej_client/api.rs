@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::{
-    auth::{
+    crypto::{
         auth::{AuthToken, encode_token},
         auth_body::AuthBody,
         secret_hash::generate_secret_hash,
