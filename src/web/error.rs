@@ -19,6 +19,7 @@ impl IntoResponse for Error {
             | Error::R2D2(_)
             | Error::Diesel(_)
             | Error::CtxMissing
+            | Error::Json(_)
             | Error::Toml(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error"),
         };
 

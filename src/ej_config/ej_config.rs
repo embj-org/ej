@@ -1,20 +1,38 @@
-use crate::prelude::*;
+use crate::{
+    crypto::sha256::generate_hash,
+    db::connection::DbConnection,
+    ej_config::db::{
+        ej_board_config_tag_db::{EjBoardConfigTag, NewEjBoardConfigTag},
+        ej_tag::{EjTag, NewEjTag},
+    },
+    prelude::*,
+};
 use std::path::Path;
 
+use log::info;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
-use super::ej_board::EjBoard;
+use super::{
+    db::{
+        ej_board_config_db::NewEjBoardConfigDb,
+        ej_board_db::NewEjBoardDb,
+        ej_config_db::{EjConfigDb, NewEjConfigDb},
+    },
+    ej_board::EjBoard,
+};
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EjGlobalConfig {
     pub version: String,
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EjConfig {
     pub global: EjGlobalConfig,
     pub boards: Vec<EjBoard>,
 }
+
 impl EjConfig {
     pub fn from_file(file_path: &Path) -> Result<Self> {
         let contents = std::fs::read_to_string(file_path)?;
@@ -22,6 +40,44 @@ impl EjConfig {
     }
     pub fn from_toml(value: &str) -> Result<Self> {
         Ok(toml::from_str(value)?)
+    }
+    pub fn create(self, client_id: &Uuid, conn: &mut DbConnection) -> Result<Self> {
+        let hash = generate_hash(&self)?;
+        if let Ok(_) = EjConfigDb::fetch_client_config(conn, client_id, &hash) {
+            info!("Config already exists");
+            return Ok(self);
+        }
+        info!("Config with hash {hash} not found for client {client_id}. Creating one...");
+
+        let result = self.clone();
+        let config = NewEjConfigDb::new(*client_id, self.global.version).save(conn)?;
+        for board in self.boards {
+            let board_db =
+                NewEjBoardDb::new(config.id.clone(), board.name, board.description).save(conn)?;
+            for board_config in board.configs {
+                let board_config_db =
+                    NewEjBoardConfigDb::new(board_db.id.clone(), board_config.description)
+                        .save(conn)?;
+                for tag in board_config.tags {
+                    let tag_db = {
+                        if let Ok(tag_db) = EjTag::fetch_by_name(conn, &tag) {
+                            tag_db
+                        } else {
+                            match NewEjTag::new(&tag).save(conn) {
+                                Ok(tag_db) => tag_db,
+                                Err(err) => {
+                                    tracing::error!("Failed to create tag {tag}: {err}");
+                                    continue;
+                                }
+                            }
+                        }
+                    };
+
+                    NewEjBoardConfigTag::new(board_config_db.id, tag_db.id);
+                }
+            }
+        }
+        Ok(result)
     }
 }
 

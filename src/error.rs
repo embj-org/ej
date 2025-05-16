@@ -23,6 +23,9 @@ pub enum Error {
     #[error(transparent)]
     Toml(#[from] toml::de::Error),
 
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
+
     /* Api Errors */
     #[error("API Forbidden")]
     ApiForbidden,
