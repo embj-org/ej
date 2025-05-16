@@ -1,11 +1,15 @@
 use std::{error::Error, path::Path};
 
-use common::{EJD, test_context::TestContext};
+use common::{EJD, login, test_context::TestContext};
 use diesel::prelude::*;
-use ej::ej_config::{
-    ej_board::EjBoard,
-    ej_board_config::EjBoardConfig,
-    ej_config::{EjConfig, EjGlobalConfig},
+use ej::{
+    ej_builder::api::EjBuilderApi,
+    ej_client::api::EjClientLoginRequest,
+    ej_config::{
+        ej_board::EjBoard,
+        ej_board_config::EjBoardConfig,
+        ej_config::{EjConfig, EjGlobalConfig},
+    },
 };
 
 mod common;
@@ -91,6 +95,24 @@ async fn test_from_file() -> Result<(), Box<dyn Error>> {
 async fn test_send_to_server() {
     let (mut db, client) = TestContext::from_env();
     setup_database(&mut db.conn);
+
+    login(
+        &client,
+        EjClientLoginRequest::new("root", "my_super_secret"),
+    )
+    .await
+    .expect("failed to login client");
+
+    let builder: EjBuilderApi = EJD
+        .post_no_body(&client, "client/builder")
+        .await
+        .expect("failed to create builder");
+
+    let payload = serde_json::to_string(&builder).expect("json serialization failed");
+    let _: EjBuilderApi = EJD
+        .post(&client, "builder/login", payload)
+        .await
+        .expect("failed to login builder");
 
     let config =
         EjConfig::from_file(Path::new("examples/config.toml")).expect("parsing from file failed");
