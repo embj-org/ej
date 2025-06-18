@@ -11,5 +11,8 @@ members = [
 	# Services
 	"crates/services/dispatcher",
 	"crates/services/builder",
+
+	# Tools 
+	"crates/tools/ejcli",
 ]
 resolver = "2"
