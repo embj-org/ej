@@ -1,0 +1,17 @@
+[package]
+name = "ejd"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ej = { path = "../../libs/lib-core" }
+axum = { version = "0.8.3", features = ["macros", "ws"] }
+futures = "0.3.31"
+futures-util = "0.3.31"
+tokio = { version = "1.44.2", features = ["macros", "rt-multi-thread"] }
+tokio-tungstenite = "0.26.2"
+tower-cookies = "0.11.0"
+tower-http = { version = "0.6.2", features = ["cors", "trace"] }
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+serde_json = "1.0.140"

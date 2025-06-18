@@ -1,39 +1,7 @@
-[package]
-name = "ej"
-version = "0.1.0"
-edition = "2024"
+[workspace.lints.rust]
+unsafe_code = "forbid"
+unused = "allow"
 
-[dependencies]
-argon2 = "0.5.3"
-axum = { version = "0.8.3", features = ["macros", "ws"] }
-chrono = { version = "0.4.40", features = ["serde"] }
-diesel = { version = "2.2.10", features = [
-	"uuid",
-	"chrono",
-	"postgres",
-	"r2d2",
-] }
-diesel_migrations = { version = "2.2.0", features = ["postgres"] }
-futures = "0.3.31"
-futures-util = "0.3.31"
-headers = "0.4.0"
-jsonwebtoken = "9.3.1"
-log = "0.4.27"
-pretty_env_logger = "0.5.0"
-rand = { version = "0.8.5", features = ["getrandom"] }
-serde = { version = "1.0.219", features = ["derive"] }
-serde_json = "1.0.140"
-sha2 = "0.10.9"
-thiserror = "2.0.12"
-tokio = { version = "1.44.2", features = ["macros", "rt-multi-thread"] }
-tokio-tungstenite = "0.26.2"
-toml = "0.8.22"
-tower-cookies = "0.11.0"
-tower-http = { version = "0.6.2", features = ["cors", "trace"] }
-tracing = "0.1.41"
-tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
-uuid = { version = "1.16.0", features = ["v4", "serde"] }
-
-[dev-dependencies]
-reqwest = { version = "0.12.15", features = ["cookies"] }
-serial_test = "3.2.0"
+[workspace]
+members = ["crates/services/dispatcher", "crates/libs/lib-core"]
+resolver = "2"
