@@ -10,5 +10,6 @@ members = [
 
 	# Services
 	"crates/services/dispatcher",
+	"crates/services/builder",
 ]
 resolver = "2"
