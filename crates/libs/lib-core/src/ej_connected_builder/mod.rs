@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use crate::{ctx::ctx_client::CtxClient, ej_message::EjServerMessage};
 use tokio::sync::mpsc::Sender;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct EjConnectedBuilder {
     pub client: CtxClient,
     pub tx: Sender<EjServerMessage>,
