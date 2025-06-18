@@ -9,6 +9,10 @@ pub struct Cli {
     #[arg(short, long)]
     pub config: PathBuf,
 
+    /// Builder id (can also be set via EJB_ID environment variable)
+    #[arg(short, long)]
+    pub id: Option<String>,
+
     /// Builder authentication token (can also be set via EJB_TOKEN environment variable)
     #[arg(short, long)]
     pub token: Option<String>,

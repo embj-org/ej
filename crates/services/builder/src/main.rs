@@ -22,7 +22,7 @@ async fn main() -> anyhow::Result<()> {
     let result = match cli.command {
         Commands::Parse => handle_parse(&cli.config),
         Commands::Validate => handle_validate(&cli.config),
-        Commands::Run { server } => handle_run(&cli.config, &server, cli.token).await,
+        Commands::Run { server } => handle_run(&cli.config, &server, cli.id, cli.token).await,
     };
 
     if let Err(e) = result {
