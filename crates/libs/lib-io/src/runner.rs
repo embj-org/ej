@@ -34,15 +34,18 @@ impl Runner {
     pub fn get_full_command(&self) -> String {
         format!("{} {}", &self.command, &self.args.join(" "))
     }
-
-    fn read_stream<T: Read>(tx: Sender<RunEvent>, stream: T) {
-        let reader = BufReader::new(stream);
-        reader.lines().for_each(|line| match line {
-            Ok(line) => {
-                let _ = tx.send(RunEvent::ProcessNewOutputLine(line));
+    fn read_stream<T: Read>(tx: Sender<RunEvent>, mut stream: T) {
+        let mut buffer = [0; 1024];
+        loop {
+            match stream.read(&mut buffer) {
+                Ok(0) => break, // EOF
+                Ok(n) => {
+                    let data = String::from_utf8_lossy(&buffer[..n]);
+                    let _ = tx.send(RunEvent::ProcessNewOutputLine(data.to_string()));
+                }
+                Err(_) => break,
             }
-            Err(_) => return,
-        });
+        }
     }
     fn launch_stream_reader<T>(tx: Sender<RunEvent>, stream: T) -> JoinHandle<()>
     where
