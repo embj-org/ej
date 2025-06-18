@@ -3,5 +3,12 @@ unsafe_code = "forbid"
 unused = "allow"
 
 [workspace]
-members = ["crates/services/dispatcher", "crates/libs/lib-core"]
+members = [
+	# Libs
+	"crates/libs/lib-core",
+	"crates/libs/lib-io",
+
+	# Services
+	"crates/services/dispatcher",
+]
 resolver = "2"
