@@ -6,10 +6,6 @@ use std::path::PathBuf;
 #[command(name = "ejc")]
 #[command(about = "EJ  - Build and run applications across multiple configurations")]
 pub struct Cli {
-    /// Path to the EJD's unix socket
-    #[arg(short, long)]
-    pub socket: PathBuf,
-
     #[command(subcommand)]
     pub command: Commands,
 }
@@ -18,14 +14,31 @@ pub struct Cli {
 pub enum Commands {
     /// Dispatch a new job
     Dispatch {
+        /// Path to the EJD's unix socket
+        #[arg(short, long)]
+        socket: PathBuf,
         #[command(flatten)]
         job: DispatchArgs,
     },
 
     /// Create a new user
-    CreateUser {
+    CreateRootUser {
+        /// Path to the EJD's unix socket
+        #[arg(short, long)]
+        socket: PathBuf,
+
         #[command(flatten)]
-        client: CreateUserArgs,
+        client: UserArgs,
+    },
+
+    /// Create a new builder
+    CreateBuilder {
+        /// Server url
+        #[arg(short, long)]
+        server: String,
+
+        #[command(flatten)]
+        client: UserArgs,
     },
 }
 #[derive(Args)]
@@ -43,32 +56,14 @@ pub struct DispatchArgs {
     pub remote_token: Option<String>,
 }
 
-impl From<DispatchArgs> for EjJob {
-    fn from(value: DispatchArgs) -> Self {
-        Self {
-            remote_token: value.remote_token,
-            commit_hash: value.commit_hash,
-            remote_url: value.remote_url,
-        }
-    }
-}
-
 #[derive(Args)]
-pub struct CreateUserArgs {
+pub struct UserArgs {
     /// User name
     #[arg(long)]
-    pub name: String,
+    pub username: String,
 
     /// User password
+    /// Recomended to keep this empty and set it when prompted
     #[arg(long)]
-    pub password: String,
-}
-
-impl From<CreateUserArgs> for EjClientPost {
-    fn from(value: CreateUserArgs) -> Self {
-        Self {
-            name: value.name,
-            secret: value.password,
-        }
-    }
+    pub password: Option<String>,
 }

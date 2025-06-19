@@ -1,9 +1,12 @@
+use ej::ej_client::db::EjClient;
+use ej::ej_client_permission::{ClientPermission, NewClientPermission};
 use ej::ej_message::{EjServerMessage, EjSocketMessage};
+use ej::permission::{self, Permission};
 use ej::prelude::*;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixStream;
 use tokio::task::JoinHandle;
-use tracing::info;
+use tracing::{error, info};
 
 use crate::dispatcher::Dispatcher;
 
@@ -21,10 +24,34 @@ async fn handle_client(dispatcher: Dispatcher, stream: UnixStream) -> Result<()>
 
                 if let Ok(msg) = serde_json::from_str::<EjSocketMessage>(&line) {
                     match msg {
-                        EjSocketMessage::CreateUser(payload) => {
-                            info!("Creating user {}", payload.name);
-                            let response = payload.persist(&dispatcher.connection)?;
-                            let serialized_response = serde_json::to_string(&response)?;
+                        EjSocketMessage::CreateRootUser(payload) => {
+                            let clients = EjClient::fetch_all(&dispatcher.connection)?;
+                            if clients.len() > 0 {
+                                error!("Tried to create root user but it already exists");
+                                break;
+                            }
+                            info!("Creating root user {}", payload.name);
+                            let client = payload.persist(&dispatcher.connection)?;
+
+                            let permissions = Permission::fetch_all(&dispatcher.connection)?;
+                            for permission in permissions.iter() {
+                                let client_permission = NewClientPermission {
+                                    ejclient_id: client.id,
+                                    permission_id: permission.id.clone(),
+                                };
+                                let client_permission = ClientPermission::new(
+                                    &dispatcher.connection,
+                                    client_permission,
+                                );
+                                if let Err(err) = client_permission {
+                                    error!(
+                                        "Failed to add permission {} to user {}",
+                                        permission.id, err
+                                    );
+                                }
+                            }
+
+                            let serialized_response = serde_json::to_string(&client)?;
                             writer.write_all(serialized_response.as_bytes()).await?;
                             writer.write_all(b"\n").await?;
                             break;

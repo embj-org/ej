@@ -1,8 +1,10 @@
 use crate::ej_client_permission::ClientPermission;
 use crate::permission::Permission;
 use crate::prelude::*;
+use crate::schema::ejclient;
 use crate::{db::connection::DbConnection, schema::ejclient::dsl::*};
 use chrono::{DateTime, Utc};
+use diesel::associations::HasTable;
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -60,6 +62,11 @@ impl EjClient {
     }
     pub fn fetch_permissions(&self, connection: &DbConnection) -> Result<Vec<Permission>> {
         Ok(ClientPermission::fetch_by_client(connection, self)?.1)
+    }
+    pub fn fetch_all(connection: &DbConnection) -> Result<Vec<Self>> {
+        let conn = &mut connection.pool.get()?;
+
+        Ok(EjClient::table().select(EjClient::as_select()).load(conn)?)
     }
 }
 

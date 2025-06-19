@@ -18,6 +18,6 @@ pub enum EjClientMessage {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum EjSocketMessage {
-    CreateUser(EjClientPost),
+    CreateRootUser(EjClientPost),
     Dispatch(EjJob),
 }

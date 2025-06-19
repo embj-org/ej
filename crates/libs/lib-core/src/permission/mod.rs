@@ -22,11 +22,11 @@ impl Permission {
         Permission { id }
     }
 
-    fn fetch_all(conn: &DbConnection) -> Result<Vec<Self>> {
+    pub fn fetch_all(conn: &DbConnection) -> Result<Vec<Self>> {
         let conn = &mut conn.pool.get()?;
         Ok(crate::schema::permission::table.load(conn)?)
     }
-    fn fetch_by_id(conn: &DbConnection, target_id: &String) -> Result<Self> {
+    pub fn fetch_by_id(conn: &DbConnection, target_id: &String) -> Result<Self> {
         use crate::schema::permission::dsl::*;
         let conn = &mut conn.pool.get()?;
         Ok(permission
