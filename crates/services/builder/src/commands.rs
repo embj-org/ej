@@ -3,8 +3,10 @@ use ej::ej_config::ej_board::EjBoard;
 use ej::ej_config::ej_config::EjConfig;
 use ej::ej_message::{EjClientMessage, EjServerMessage};
 use ej::prelude::*;
+use ej::web::ctx::{AUTH_HEADER, AUTH_HEADER_PREFIX};
 use futures_util::{SinkExt, StreamExt};
 use lib_io::runner::Runner;
+use lib_requests::ApiClient;
 use serde_json;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -12,6 +14,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::mpsc;
 use std::sync::Arc;
 use std::thread;
+use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 use tracing::{debug, error, info, warn};
 use uuid;
@@ -124,7 +127,7 @@ pub async fn handle_run(
     let id =
         uuid::Uuid::from_str(&id.or_else(|| std::env::var("EJB_ID").ok()).ok_or_else(|| {
             Error::Generic(String::from(
-                "Builder token is required. Set EJB_TOKEN environment variable or use --token flag",
+                "Builder token is required. Set EJB_ID environment variable or use --id flag",
             ))
         })?)
         .map_err(|err| Error::Generic(format!("Failed to parse id to uuid ({})", err)))?;
@@ -137,42 +140,19 @@ pub async fn handle_run(
             ))
         })?;
 
-    info!("Configuration loaded and validated");
-    info!("Authentication token provided");
-
-    let client = reqwest::Client::builder()
-        .cookie_store(true)
-        .build()
-        .map_err(|e| Error::Generic(format!("Failed to create HTTP client: {}", e)))?;
-
-    let login_url = format!("{}/v1/builder/login", server_url);
-
+    let client = ApiClient::new(server_url);
     let builder_api = EjBuilderApi {
         id,
         token: auth_token.clone(),
     };
 
-    debug!("Logging in to: {}", login_url);
-    let response = client
-        .post(&login_url)
-        .json(&builder_api)
-        .send()
+    let body = serde_json::to_string(&builder_api)?;
+    let response: EjBuilderApi = client
+        .post("v1/builder/login", body)
         .await
-        .map_err(|e| Error::Generic(format!("Failed to login: {}", e)))?;
+        .expect("Failed to login");
 
-    if !response.status().is_success() {
-        return Err(Error::Generic(format!(
-            "Login failed with status: {}",
-            response.status()
-        )));
-    }
-
-    let login_response: EjBuilderApi = response
-        .json()
-        .await
-        .map_err(|e| Error::Generic(format!("Failed to parse login response: {}", e)))?;
-
-    info!("Successfully logged in as builder {}", login_response.id);
+    info!("Successfully logged in as builder {}", response.id);
 
     let ws_url = if server_url.starts_with("https") {
         server_url.replace("https", "ws")
@@ -184,7 +164,18 @@ pub async fn handle_run(
     let ws_url = format!("{}/v1/builder/ws", ws_url);
     debug!("Connecting to WebSocket: {}", ws_url);
 
-    let (ws_stream, _) = connect_async(&ws_url)
+    let mut request = ws_url
+        .into_client_request()
+        .expect("Failed to create client websocket request");
+
+    request.headers_mut().insert(
+        AUTH_HEADER,
+        format!("{}{}", AUTH_HEADER_PREFIX, response.token)
+            .parse()
+            .unwrap(),
+    );
+
+    let (ws_stream, _) = connect_async(request)
         .await
         .map_err(|e| Error::Generic(format!("Failed to connect to WebSocket: {}", e)))?;
 
