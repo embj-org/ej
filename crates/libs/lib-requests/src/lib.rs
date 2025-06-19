@@ -1,13 +1,30 @@
 use std::{borrow::Borrow, error::Error, str::FromStr};
 
-use reqwest::{StatusCode, Url};
+use reqwest::{StatusCode, Url, header};
 use serde::de::DeserializeOwned;
 
 pub struct ApiClient {
-    pub url: &'static str,
+    url: String,
+    pub client: reqwest::Client,
 }
 
 impl ApiClient {
+    pub fn new(url: impl Into<String>) -> Self {
+        let mut headers = header::HeaderMap::new();
+        headers.insert(
+            "content-type",
+            header::HeaderValue::from_static("application/json"),
+        );
+        let client = reqwest::ClientBuilder::new()
+            .default_headers(headers)
+            .cookie_store(true)
+            .build()
+            .expect("Failed to build reqwest Client");
+        Self {
+            url: url.into(),
+            client,
+        }
+    }
     fn path(&self, endpoint: &str) -> String {
         format!("{}/{endpoint}", self.url)
     }
@@ -41,13 +58,13 @@ impl ApiClient {
     }
     pub async fn post<T: Into<reqwest::Body>, U: DeserializeOwned>(
         &self,
-        client: &reqwest::Client,
         endpoint: &str,
         body: T,
     ) -> Result<U, Box<dyn Error>> {
         let url = reqwest::Url::from_str(&self.path(endpoint)).unwrap();
 
-        let response = client
+        let response = self
+            .client
             .post(url)
             .header("content-type", "application/json")
             .body(body)
@@ -56,18 +73,20 @@ impl ApiClient {
             .text()
             .await?;
 
+        println!("Response {response}");
+
         Ok(serde_json::from_str(&response)?)
     }
 
     pub async fn post_no_body<T: DeserializeOwned>(
         &self,
-        client: &reqwest::Client,
         endpoint: &str,
     ) -> Result<T, Box<dyn Error>> {
         let url = reqwest::Url::from_str(&self.path(endpoint)).unwrap();
 
-        let response = client.post(url).send().await?.text().await?;
+        let response = self.client.post(url).send().await?.text().await?;
 
+        println!("Response {response}");
         Ok(serde_json::from_str(&response)?)
     }
 
