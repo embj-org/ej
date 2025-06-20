@@ -21,15 +21,12 @@ pub struct EjBoardConfigDb {
 #[diesel(table_name = crate::schema::ejboard_config)]
 pub struct NewEjBoardConfigDb {
     pub ejboard_id: Uuid,
-    pub description: String,
+    pub name: String,
 }
 
 impl NewEjBoardConfigDb {
-    pub fn new(ejboard_id: Uuid, description: String) -> Self {
-        Self {
-            ejboard_id,
-            description,
-        }
+    pub fn new(ejboard_id: Uuid, name: String) -> Self {
+        Self { ejboard_id, name }
     }
     pub fn save(self, connection: &mut DbConnection) -> Result<EjBoardConfigDb> {
         use crate::schema::ejboard_config::dsl::*;
