@@ -20,7 +20,9 @@ impl IntoResponse for Error {
             | Error::Diesel(_)
             | Error::CtxMissing
             | Error::Json(_)
-            | Error::Toml(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error"),
+            | Error::Toml(_)
+            | Error::BuildError
+            | Error::RunError => (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error"),
         };
 
         let body = Json(json!({

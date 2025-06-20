@@ -26,6 +26,14 @@ pub enum Error {
     #[error(transparent)]
     Json(#[from] serde_json::Error),
 
+    /* Builder Errors */
+    #[error("Build error")]
+    BuildError,
+
+    /* Run Errors */
+    #[error("Run error")]
+    RunError,
+
     /* Api Errors */
     #[error("API Forbidden")]
     ApiForbidden,
