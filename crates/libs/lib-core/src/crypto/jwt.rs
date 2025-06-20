@@ -2,9 +2,9 @@ use crate::prelude::*;
 use std::sync::LazyLock;
 
 use jsonwebtoken::{
-    Algorithm, DecodingKey, EncodingKey, Header, TokenData, Validation, decode, encode,
+    decode, encode, Algorithm, DecodingKey, EncodingKey, Header, TokenData, Validation,
 };
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{de::DeserializeOwned, Serialize};
 
 static KEYS: LazyLock<Keys> = LazyLock::new(|| {
     let secret = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set");
