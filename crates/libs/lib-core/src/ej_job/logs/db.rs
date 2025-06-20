@@ -1,4 +1,4 @@
-use crate::ej_job::db::EjJob;
+use crate::ej_job::db::EjJobDb;
 use crate::prelude::*;
 use crate::{db::connection::DbConnection, schema::ejjoblog::dsl::*};
 use chrono::{DateTime, Utc};
@@ -74,8 +74,8 @@ impl EjJobLog {
             .load(conn)?)
     }
 
-    pub fn fetch_job(&self, connection: &DbConnection) -> Result<EjJob> {
-        EjJob::fetch_by_id(&self.ejjob_id, connection)
+    pub fn fetch_job(&self, connection: &DbConnection) -> Result<EjJobDb> {
+        EjJobDb::fetch_by_id(&self.ejjob_id, connection)
     }
 
     pub fn fetch_all(connection: &DbConnection) -> Result<Vec<Self>> {
