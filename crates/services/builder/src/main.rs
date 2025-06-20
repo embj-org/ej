@@ -1,10 +1,15 @@
 mod cli;
 mod commands;
+mod connection;
 
 use clap::Parser;
 use cli::{Cli, Commands};
 use commands::{handle_parse, handle_run, handle_validate};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+use crate::{
+    connection::handle_connect,
+};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -22,7 +27,9 @@ async fn main() -> anyhow::Result<()> {
     let result = match cli.command {
         Commands::Parse => handle_parse(&cli.config),
         Commands::Validate => handle_validate(&cli.config),
-        Commands::Run { server } => handle_run(&cli.config, &server, cli.id, cli.token).await,
+        Commands::Connect { server } => {
+            handle_connect(&cli.config, &server, cli.id, cli.token).await
+        }
     };
 
     if let Err(e) = result {

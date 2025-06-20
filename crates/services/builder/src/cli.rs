@@ -28,7 +28,7 @@ pub enum Commands {
     /// Parse and run every configuration
     Validate,
     /// Run the builder and connect to the server via websockets
-    Run {
+    Connect {
         /// Server URL to connect to
         #[arg(short, long)]
         server: String,
