@@ -20,30 +20,26 @@ use tracing::{debug, error, info, warn};
 use uuid;
 
 pub fn handle_parse(config_path: &PathBuf) -> Result<()> {
-    info!("Parsing configuration file: {:?}", config_path);
+    println!("Parsing configuration file: {:?}", config_path);
 
     let config = EjConfig::from_file(config_path)?;
 
-    info!("Configuration parsed successfully");
-    info!("Global version: {}", config.global.version);
-    info!("Number of boards: {}", config.boards.len());
+    println!("Configuration parsed successfully");
+    println!("Global version: {}", config.global.version);
+    println!("Number of boards: {}", config.boards.len());
 
     for (board_idx, board) in config.boards.iter().enumerate() {
-        info!("\nBoard {}: {}", board_idx + 1, board.name);
-        info!("  Description: {}", board.description);
-        info!("  Configurations: {}", board.configs.len());
+        println!("\nBoard {}: {}", board_idx + 1, board.name);
+        println!("  Description: {}", board.description);
+        println!("  Configurations: {}", board.configs.len());
 
         for (config_idx, board_config) in board.configs.iter().enumerate() {
-            info!(
-                "    Config {}: {}",
-                config_idx + 1,
-                board_config.description
-            );
-            info!("      Tags: {:?}", board_config.tags);
-            info!("      Build script: {:?}", board_config.build_script);
-            info!("      Run script: {:?}", board_config.run_script);
-            info!("      Results path: {:?}", board_config.results_path);
-            info!("      Library path: {:?}", board_config.library_path);
+            println!("    Config {}: {}", config_idx + 1, board_config.name);
+            println!("      Tags: {:?}", board_config.tags);
+            println!("      Build script: {:?}", board_config.build_script);
+            println!("      Run script: {:?}", board_config.run_script);
+            println!("      Results path: {:?}", board_config.results_path);
+            println!("      Library path: {:?}", board_config.library_path);
         }
     }
 
