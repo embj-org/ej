@@ -1,13 +1,15 @@
+mod build;
 mod cli;
 mod commands;
 mod connection;
+mod run;
 
 use clap::Parser;
 use cli::{Cli, Commands};
-use commands::{handle_parse, handle_run, handle_validate};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::{
+    commands::{handle_parse, handle_run_and_build},
     connection::handle_connect,
 };
 
@@ -26,7 +28,7 @@ async fn main() -> anyhow::Result<()> {
 
     let result = match cli.command {
         Commands::Parse => handle_parse(&cli.config),
-        Commands::Validate => handle_validate(&cli.config),
+        Commands::Validate => handle_run_and_build(&cli.config),
         Commands::Connect { server } => {
             handle_connect(&cli.config, &server, cli.id, cli.token).await
         }
