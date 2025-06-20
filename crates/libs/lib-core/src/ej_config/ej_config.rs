@@ -7,7 +7,7 @@ use crate::{
     },
     prelude::*,
 };
-use std::path::Path;
+use std::{collections::HashSet, path::Path};
 
 use log::info;
 use serde::{Deserialize, Serialize};
@@ -61,14 +61,16 @@ impl EjConfig {
         info!("Config with hash {hash} not found for client {client_id}. Creating one...");
 
         let result = self.clone();
+        if !result.validate() {
+            return Err(Error::Generic(String::from("Config is not valid")));
+        }
         let config = NewEjConfigDb::new(*client_id, self.global.version, hash).save(conn)?;
         for board in self.boards {
             let board_db =
                 NewEjBoardDb::new(config.id.clone(), board.name, board.description).save(conn)?;
             for board_config in board.configs {
                 let board_config_db =
-                    NewEjBoardConfigDb::new(board_db.id.clone(), board_config.description)
-                        .save(conn)?;
+                    NewEjBoardConfigDb::new(board_db.id.clone(), board_config.name).save(conn)?;
                 for tag in board_config.tags {
                     let tag_db = {
                         if let Ok(tag_db) = EjTag::fetch_by_name(conn, &tag) {
@@ -83,7 +85,6 @@ impl EjConfig {
                             }
                         }
                     };
-
                     NewEjBoardConfigTag::new(board_config_db.id, tag_db.id);
                 }
             }
