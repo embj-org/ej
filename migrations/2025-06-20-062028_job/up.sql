@@ -15,8 +15,8 @@ CREATE TABLE ejjob (
 	id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
 	commit_hash VARCHAR NOT NULL,
 	remote_url VARCHAR NOT NULL,
-	build_status INTEGER REFERENCES ejjobstatus(id),
-	run_status INTEGER REFERENCES ejjobstatus(id),
+	build_status INTEGER REFERENCES ejjobstatus(id) NOT NULL DEFAULT 0,
+	run_status INTEGER REFERENCES ejjobstatus(id) NOT NULL DEFAULT 0,
 	created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

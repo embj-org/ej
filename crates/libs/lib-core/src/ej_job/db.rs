@@ -14,8 +14,8 @@ pub struct EjJob {
     pub id: Uuid,
     pub commit_hash: String,
     pub remote_url: String,
-    pub build_status: Option<i32>,
-    pub run_status: Option<i32>,
+    pub build_status: i32,
+    pub run_status: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -57,18 +57,12 @@ impl EjJob {
         Ok(job.into())
     }
 
-    pub fn fetch_build_status(&self, connection: &DbConnection) -> Result<Option<EjJobStatus>> {
-        match self.build_status {
-            Some(status_id) => Ok(Some(EjJobStatus::fetch_by_id(&status_id, connection)?)),
-            None => Ok(None),
-        }
+    pub fn fetch_build_status(&self, connection: &DbConnection) -> Result<EjJobStatus> {
+        Ok(EjJobStatus::fetch_by_id(self.build_status, connection)?)
     }
 
-    pub fn fetch_run_status(&self, connection: &DbConnection) -> Result<Option<EjJobStatus>> {
-        match self.run_status {
-            Some(status_id) => Ok(Some(EjJobStatus::fetch_by_id(&status_id, connection)?)),
-            None => Ok(None),
-        }
+    pub fn fetch_run_status(&self, connection: &DbConnection) -> Result<EjJobStatus> {
+        Ok(EjJobStatus::fetch_by_id(self.run_status, connection)?)
     }
 
     pub fn fetch_all(connection: &DbConnection) -> Result<Vec<Self>> {

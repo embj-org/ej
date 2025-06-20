@@ -31,7 +31,7 @@ impl EjJobStatusCreate {
 }
 
 impl EjJobStatus {
-    pub fn fetch_by_id(target: &i32, connection: &DbConnection) -> Result<Self> {
+    pub fn fetch_by_id(target: i32, connection: &DbConnection) -> Result<Self> {
         let conn = &mut connection.pool.get()?;
         let job_status: EjJobStatus = EjJobStatus::by_id(target)
             .select(EjJobStatus::as_select())
@@ -57,7 +57,7 @@ impl EjJobStatus {
 
 impl EjJobStatus {
     #[diesel::dsl::auto_type(no_type_alias)]
-    pub fn by_id(target: &i32) -> _ {
+    pub fn by_id(target: i32) -> _ {
         crate::schema::ejjobstatus::dsl::ejjobstatus.filter(id.eq(target))
     }
 
