@@ -1,9 +1,8 @@
-use crate::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EjBoardConfig {
-    pub description: String,
+    pub name: String,
     pub tags: Vec<String>,
     pub build_script: String,
     pub run_script: String,

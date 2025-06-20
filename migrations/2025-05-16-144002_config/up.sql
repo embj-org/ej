@@ -21,7 +21,7 @@ CREATE TABLE ejboard (
 CREATE TABLE ejboard_config (
 	id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
 	ejboard_id uuid NOT NULL REFERENCES ejboard(id),
-	description TEXT NOT NULL DEFAULT '',
+	name TEXT NOT NULL,
 	created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

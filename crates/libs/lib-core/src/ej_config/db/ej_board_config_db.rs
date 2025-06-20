@@ -12,7 +12,7 @@ use crate::{db::connection::DbConnection, ej_config::db::ej_board_db::EjBoardDb}
 pub struct EjBoardConfigDb {
     pub id: Uuid,
     pub ejboard_id: Uuid,
-    pub description: String,
+    pub name: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
