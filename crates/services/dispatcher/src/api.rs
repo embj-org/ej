@@ -10,12 +10,10 @@ use axum::{
     Json, Router,
 };
 use ej::{
-    db::connection::DbConnection,
     ej_builder::api::EjBuilderApi,
     ej_client::api::{EjClientApi, EjClientLogin, EjClientLoginRequest, EjClientPost},
     ej_config::ej_config::EjConfig,
-    ej_connected_builder::EjConnectedBuilder,
-    ej_job::api::EjJob,
+    ej_job::{api::EjJob, results::db::EjJobResultCreate},
     ej_message::{EjClientMessage, EjServerMessage},
     require_permission,
     web::{
@@ -24,15 +22,12 @@ use ej::{
     },
 };
 use tokio::{
-    sync::{
-        mpsc::{channel, Receiver},
-        Mutex,
-    },
+    sync::mpsc::{channel, Receiver},
     task::JoinHandle,
 };
 use tower_cookies::{CookieManagerLayer, Cookies};
 
-use std::{net::SocketAddr, sync::Arc};
+use std::net::SocketAddr;
 use tower_http::{
     cors::CorsLayer,
     trace::{DefaultMakeSpan, TraceLayer},
@@ -160,7 +155,7 @@ async fn builder_handler(
     ws: WebSocketUpgrade,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     ctx: Ctx,
-    state: State<Dispatcher>,
+    State(state): State<Dispatcher>,
 ) -> impl IntoResponse {
     println!("Client at {addr} connected.");
     let (tx, rx) = channel(2);
@@ -170,11 +165,16 @@ async fn builder_handler(
         .lock()
         .await
         .push(ctx.client.connect(tx, addr));
-    ws.on_upgrade(move |socket| handle_socket(socket, addr, rx))
+    ws.on_upgrade(move |socket| handle_socket(state, socket, addr, rx))
 }
 
 /// Actual websocket statemachine (one will be spawned per connection)
-async fn handle_socket(mut socket: WebSocket, who: SocketAddr, mut rx: Receiver<EjServerMessage>) {
+async fn handle_socket(
+    dispatcher: Dispatcher,
+    mut socket: WebSocket,
+    who: SocketAddr,
+    mut rx: Receiver<EjServerMessage>,
+) {
     // send a ping (unsupported by some browsers) just to kick things off and get a response
     if socket
         .send(Message::Ping(Bytes::from_static(&[1, 2, 3])))
@@ -252,8 +252,25 @@ async fn handle_socket(mut socket: WebSocket, who: SocketAddr, mut rx: Receiver<
                     })?;
 
                     match message {
-                        EjClientMessage::Results { results } => todo!(),
-                        EjClientMessage::JobLog { log } => todo!(),
+                        EjClientMessage::Results {
+                            job_id,
+                            config_id,
+                            results,
+                        } => {
+                            let job_result = EjJobResultCreate {
+                                ejjob_id: job_id,
+                                ejboard_config_id: config_id,
+                                result: results,
+                            };
+                            if let Err(err) = job_result.save(&dispatcher.connection) {
+                                sender.send(EjServerMessage::Error(err)).await;
+                            }
+                        }
+                        EjClientMessage::JobLog {
+                            job_id,
+                            config_id,
+                            log,
+                        } => todo!(),
                         EjClientMessage::JobFailure => todo!(),
                         EjClientMessage::JobSucess => todo!(),
                     }
