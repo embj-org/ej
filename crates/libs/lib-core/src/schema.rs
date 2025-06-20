@@ -25,7 +25,7 @@ diesel::table! {
     ejboard_config (id) {
         id -> Uuid,
         ejboard_id -> Uuid,
-        description -> Text,
+        name -> Text,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
     }
@@ -77,8 +77,8 @@ diesel::table! {
         id -> Uuid,
         commit_hash -> Varchar,
         remote_url -> Varchar,
-        build_status -> Nullable<Int4>,
-        run_status -> Nullable<Int4>,
+        build_status -> Int4,
+        run_status -> Int4,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
     }
