@@ -1,7 +1,7 @@
 use ej::ej_client::db::EjClient;
 use ej::ej_client_permission::{ClientPermission, NewClientPermission};
 use ej::ej_message::{EjServerMessage, EjSocketMessage};
-use ej::permission::{self, Permission};
+use ej::permission::Permission;
 use ej::prelude::*;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixStream;
