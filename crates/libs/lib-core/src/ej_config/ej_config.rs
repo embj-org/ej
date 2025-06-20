@@ -41,6 +41,17 @@ impl EjConfig {
     pub fn from_toml(value: &str) -> Result<Self> {
         Ok(toml::from_str(value)?)
     }
+    pub fn validate(&self) -> bool {
+        let mut config_names: HashSet<String> = HashSet::new();
+        for board in self.boards.iter() {
+            for board_config in board.configs.iter() {
+                if !config_names.insert(board_config.name.clone()) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
     pub fn create(self, client_id: &Uuid, conn: &mut DbConnection) -> Result<Self> {
         let hash = generate_hash(&self)?;
         if let Ok(_) = EjConfigDb::fetch_client_config(conn, client_id, &hash) {
