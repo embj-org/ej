@@ -22,13 +22,15 @@ pub struct EjBoardDb {
 #[derive(Insertable, Debug)]
 #[diesel(table_name = crate::schema::ejboard)]
 pub struct NewEjBoardDb {
+    pub id: Uuid,
     pub ejconfig_id: Uuid,
     pub name: String,
     pub description: String,
 }
 impl NewEjBoardDb {
-    pub fn new(ejconfig_id: Uuid, name: String, description: String) -> Self {
+    pub fn new(id: Uuid, ejconfig_id: Uuid, name: String, description: String) -> Self {
         Self {
+            id,
             ejconfig_id,
             name,
             description,

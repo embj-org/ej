@@ -1,13 +1,16 @@
 use crate::{
     crypto::sha256::generate_hash,
     db::connection::DbConnection,
-    ej_config::db::{
-        ej_board_config_tag_db::NewEjBoardConfigTag,
-        ej_tag::{EjTag, NewEjTag},
+    ej_config::{
+        db::{
+            ej_board_config_tag_db::NewEjBoardConfigTag,
+            ej_tag::{EjTag, NewEjTag},
+        },
+        ej_board::EjDispatcherBoard,
     },
     prelude::*,
 };
-use std::{collections::HashSet, path::Path};
+use std::path::Path;
 
 use log::info;
 use serde::{Deserialize, Serialize};
@@ -33,44 +36,38 @@ pub struct EjConfig {
     pub boards: Vec<EjBoard>,
 }
 
-impl EjConfig {
-    pub fn from_file(file_path: &Path) -> Result<Self> {
-        let contents = std::fs::read_to_string(file_path)?;
-        Ok(Self::from_toml(&contents)?)
-    }
-    pub fn from_toml(value: &str) -> Result<Self> {
-        Ok(toml::from_str(value)?)
-    }
-    pub fn validate(&self) -> bool {
-        let mut config_names: HashSet<String> = HashSet::new();
-        for board in self.boards.iter() {
-            for board_config in board.configs.iter() {
-                if !config_names.insert(board_config.name.clone()) {
-                    return false;
-                }
-            }
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EjDispatcherConfig {
+    pub global: EjGlobalConfig,
+    pub boards: Vec<EjDispatcherBoard>,
+}
+
+impl EjDispatcherConfig {
+    pub fn from_config(config: EjConfig) -> Self {
+        Self {
+            global: config.global,
+            boards: config
+                .boards
+                .into_iter()
+                .map(|board| EjDispatcherBoard::from_ej_board(board))
+                .collect(),
         }
-        return true;
     }
-    pub fn create(self, client_id: &Uuid, conn: &mut DbConnection) -> Result<Self> {
+    pub fn save(self, client_id: &Uuid, conn: &mut DbConnection) -> Result<Self> {
         let hash = generate_hash(&self)?;
         if let Ok(_) = EjConfigDb::fetch_client_config(conn, client_id, &hash) {
             info!("Config already exists");
             return Ok(self);
         }
         info!("Config with hash {hash} not found for client {client_id}. Creating one...");
-
         let result = self.clone();
-        if !result.validate() {
-            return Err(Error::Generic(String::from("Config is not valid")));
-        }
         let config = NewEjConfigDb::new(*client_id, self.global.version, hash).save(conn)?;
         for board in self.boards {
-            let board_db =
-                NewEjBoardDb::new(config.id.clone(), board.name, board.description).save(conn)?;
+            NewEjBoardDb::new(board.id, config.id.clone(), board.name, board.description)
+                .save(conn)?;
             for board_config in board.configs {
-                let board_config_db =
-                    NewEjBoardConfigDb::new(board_db.id.clone(), board_config.name).save(conn)?;
+                NewEjBoardConfigDb::new(board_config.id, board.id.clone(), board_config.name)
+                    .save(conn)?;
                 for tag in board_config.tags {
                     let tag_db = {
                         if let Ok(tag_db) = EjTag::fetch_by_name(conn, &tag) {
@@ -85,11 +82,21 @@ impl EjConfig {
                             }
                         }
                     };
-                    NewEjBoardConfigTag::new(board_config_db.id, tag_db.id);
+                    NewEjBoardConfigTag::new(board_config.id, tag_db.id);
                 }
             }
         }
         Ok(result)
+    }
+}
+
+impl EjConfig {
+    pub fn from_file(file_path: &Path) -> Result<Self> {
+        let contents = std::fs::read_to_string(file_path)?;
+        Ok(Self::from_toml(&contents)?)
+    }
+    pub fn from_toml(value: &str) -> Result<Self> {
+        Ok(toml::from_str(value)?)
     }
 }
 
