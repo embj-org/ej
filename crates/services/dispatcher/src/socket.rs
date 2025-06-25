@@ -10,7 +10,7 @@ use tracing::{error, info};
 
 use crate::dispatcher::Dispatcher;
 
-async fn handle_client(dispatcher: Dispatcher, stream: UnixStream) -> Result<()> {
+async fn handle_client(mut dispatcher: Dispatcher, stream: UnixStream) -> Result<()> {
     info!("Connected to socket client");
     let (reader, mut writer) = stream.into_split();
     let mut reader = BufReader::new(reader);
@@ -59,6 +59,7 @@ async fn handle_client(dispatcher: Dispatcher, stream: UnixStream) -> Result<()>
                         EjSocketMessage::Dispatch(job) => {
                             info!("Dispatching job {:?}", job);
                             let builders = dispatcher.builders.lock().await;
+                            let job = job.create(&mut dispatcher.connection)?;
                             for builder in builders.iter() {
                                 let message = EjServerMessage::Run(job.clone());
                                 if let Err(err) = builder.tx.send(message).await {

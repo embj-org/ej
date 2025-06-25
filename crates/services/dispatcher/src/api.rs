@@ -13,7 +13,10 @@ use ej::{
     ej_builder::api::EjBuilderApi,
     ej_client::api::{EjClientApi, EjClientLogin, EjClientLoginRequest, EjClientPost},
     ej_config::ej_config::EjConfig,
-    ej_job::{api::EjJob, results::db::EjJobResultCreate},
+    ej_job::{
+        api::{EjDeployableJob, EjJob},
+        results::db::EjJobResultCreate,
+    },
     ej_message::{EjClientMessage, EjServerMessage},
     require_permission,
     web::{
@@ -22,10 +25,11 @@ use ej::{
     },
 };
 use tokio::{
-    sync::mpsc::{channel, Receiver},
+    sync::mpsc::{channel, Receiver, Sender},
     task::JoinHandle,
 };
 use tower_cookies::{CookieManagerLayer, Cookies};
+use tracing::error;
 
 use std::net::SocketAddr;
 use tower_http::{
@@ -136,15 +140,15 @@ async fn post_builder_config(
 async fn dispatch_job(
     State(mut state): State<Dispatcher>,
     Json(payload): Json<EjJob>,
-) -> Result<Json<EjJob>> {
+) -> Result<Json<EjDeployableJob>> {
     let builders = state.builders.lock().await;
+    let job = payload.create(&mut state.connection)?;
     for builder in builders.iter() {
-        if let Err(err) = builder.tx.send(EjServerMessage::Run(payload.clone())).await {
+        if let Err(err) = builder.tx.send(EjServerMessage::Run(job.clone())).await {
             tracing::error!("Failed to dispatch job {err}");
         }
     }
-
-    Ok(Json(payload.create(&mut state.connection)?))
+    Ok(Json(job))
 }
 
 /// The handler for the HTTP request (this gets called when the HTTP request lands at the start
@@ -164,8 +168,8 @@ async fn builder_handler(
         .builders
         .lock()
         .await
-        .push(ctx.client.connect(tx, addr));
-    ws.on_upgrade(move |socket| handle_socket(state, socket, addr, rx))
+        .push(ctx.client.connect(tx.clone(), addr));
+    ws.on_upgrade(move |socket| handle_socket(state, socket, addr, (tx, rx)))
 }
 
 /// Actual websocket statemachine (one will be spawned per connection)
@@ -173,8 +177,9 @@ async fn handle_socket(
     dispatcher: Dispatcher,
     mut socket: WebSocket,
     who: SocketAddr,
-    mut rx: Receiver<EjServerMessage>,
+    channel: (Sender<EjServerMessage>, Receiver<EjServerMessage>),
 ) {
+    let (tx, mut rx) = channel;
     // send a ping (unsupported by some browsers) just to kick things off and get a response
     if socket
         .send(Message::Ping(Bytes::from_static(&[1, 2, 3])))
@@ -262,17 +267,32 @@ async fn handle_socket(
                                 ejboard_config_id: config_id,
                                 result: results,
                             };
-                            if let Err(err) = job_result.save(&dispatcher.connection) {
-                                sender.send(EjServerMessage::Error(err)).await;
+                            let job_result = job_result.save(&dispatcher.connection);
+                            match job_result {
+                                Ok(_) => todo!(),
+                                Err(err) => {
+                                    error!("Failed to save job result {err}");
+                                    tx.send(EjServerMessage::Error(err.to_string()));
+                                }
                             }
                         }
                         EjClientMessage::JobLog {
-                            job_id,
-                            config_id,
-                            log,
+                            job_id: _,
+                            config_id: _,
+                            log: _,
                         } => todo!(),
-                        EjClientMessage::JobFailure => todo!(),
-                        EjClientMessage::JobSucess => todo!(),
+                        EjClientMessage::BuildSuccess { .. } => todo!(),
+                        EjClientMessage::BuildFailure {
+                            job_id: _,
+                            builder_id: _,
+                            error: _,
+                        } => todo!(),
+                        EjClientMessage::RunSuccess { .. } => todo!(),
+                        EjClientMessage::RunFailure {
+                            job_id: _,
+                            builder_id: _,
+                            error: _,
+                        } => todo!(),
                     }
                 }
                 Message::Close(c) => {

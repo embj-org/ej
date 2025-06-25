@@ -2,12 +2,11 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 use ej::ej_config::ej_config::EjConfig;
-use ej::ej_job::api::EjDeployableJob;
+use ej::ej_job::api::EjRunOutput;
 use ej::ej_message::{EjClientMessage, EjServerMessage};
 use ej::prelude::*;
 use ej::web::ctx::AUTH_HEADER_PREFIX;
 use ej::{ej_builder::api::EjBuilderApi, web::ctx::AUTH_HEADER};
-use futures_util::stream::SplitSink;
 use futures_util::{SinkExt, StreamExt};
 use lib_requests::ApiClient;
 use tokio_tungstenite::connect_async;
@@ -17,7 +16,7 @@ use tracing::{debug, error, warn};
 use uuid::Uuid;
 
 use crate::build::build;
-use crate::commands::handle_run_and_build;
+use crate::logs::dump_logs_to_temporary_file;
 use crate::run::run;
 
 pub async fn handle_connect(
@@ -114,10 +113,17 @@ pub async fn handle_connect(
 
                 match server_message {
                     EjServerMessage::Build(job) => {
-                        let response = match build(&config) {
+                        let mut output = EjRunOutput::new(&config);
+                        let result = build(&config, &mut output);
+                        if let Err(err) = dump_logs_to_temporary_file(&output) {
+                            error!("Failed to dump logs to file - {err}");
+                        }
+                        let response = match result {
                             Ok(()) => EjClientMessage::BuildSuccess {
                                 job_id: job.id,
                                 builder_id: builder.id,
+                                config: config.clone(),
+                                logs: output.logs,
                             },
                             Err(err) => EjClientMessage::BuildFailure {
                                 job_id: job.id,
@@ -137,10 +143,18 @@ pub async fn handle_connect(
                         }
                     }
                     EjServerMessage::Run(job) => {
-                        let response = match run(&config) {
+                        let mut output = EjRunOutput::new(&config);
+                        let result = run(&config, &mut output);
+                        if let Err(err) = dump_logs_to_temporary_file(&output) {
+                            error!("Failed to dump logs to file - {err}");
+                        }
+                        let response = match result {
                             Ok(()) => EjClientMessage::RunSuccess {
                                 job_id: job.id,
                                 builder_id: builder.id,
+                                config: config.clone(),
+                                logs: output.logs,
+                                results: output.results,
                             },
                             Err(err) => EjClientMessage::RunFailure {
                                 job_id: job.id,
@@ -198,5 +212,3 @@ pub async fn handle_connect(
     println!("Builder shutting down");
     Ok(())
 }
-
-async fn serialize_and_send_to_server(writer: SplitSink, message: EjClientMessage) {}

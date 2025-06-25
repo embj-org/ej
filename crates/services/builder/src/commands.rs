@@ -1,7 +1,10 @@
 use ej::ej_config::ej_config::EjConfig;
+use ej::ej_job::api::EjRunOutput;
+use std::io::{stderr, stdout};
 use std::path::PathBuf;
 
 use crate::build::build;
+use crate::logs::dump_logs;
 use crate::run::run;
 use ej::prelude::*;
 
@@ -36,6 +39,20 @@ pub fn handle_run_and_build(config_path: &PathBuf) -> Result<()> {
     println!("Validating configuration file: {:?}", config_path);
 
     let config = EjConfig::from_file(config_path)?;
-    build(&config)?;
-    run(&config)
+    let mut output = EjRunOutput::new(&config);
+    let result = build(&config, &mut output);
+    if result.is_ok() {
+        dump_logs(&output, stdout())?;
+    } else {
+        dump_logs(&output, stderr())?;
+    }
+    result?;
+    let result = run(&config, &mut output);
+    if result.is_ok() {
+        dump_logs(&output, stdout())?;
+    } else {
+        dump_logs(&output, stderr())?;
+    }
+    result?;
+    Ok(())
 }

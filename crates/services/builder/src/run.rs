@@ -1,78 +1,120 @@
-use ej::ej_config::ej_board::EjBoard;
 use ej::ej_config::ej_config::EjConfig;
 use ej::prelude::*;
+use ej::{ej_config::ej_board::EjBoard, ej_job::api::EjRunOutput};
 use lib_io::runner::{RunEvent, Runner};
+use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
-use std::sync::mpsc::Sender;
-use std::sync::{mpsc, Arc};
+use std::sync::mpsc::channel;
+use std::sync::Arc;
 use std::thread;
-use tracing::error;
+use tracing::{error, info};
 
-pub enum Event {
-    ProcessEvent(RunEvent),
-    ResultEvent(String),
-}
-
-pub fn run(config: &EjConfig) -> Result<()> {
-    let mut join_handlers = Vec::new();
-
-    let (tx, rx) = mpsc::channel();
+pub fn run(config: &EjConfig, output: &mut EjRunOutput) -> Result<()> {
     let stop = Arc::new(AtomicBool::new(false));
 
+    let mut join_handlers = Vec::new();
     for board in config.boards.iter() {
         let board = board.clone();
-        let tx = tx.clone();
         let stop = stop.clone();
-
-        join_handlers.push(thread::spawn(move || {
-            run_all_configs(&board, tx.clone(), stop.clone())
-        }));
+        join_handlers.push(thread::spawn(move || run_all_configs(&board, stop)));
     }
 
-    while let Ok(event) = rx.recv() {
-        match event {
-            RunEvent::ProcessCreationFailed(err) => {
-                println!("\tFailed to create process {err}")
-            }
-            RunEvent::ProcessCreated => println!("\tRun started"),
-            RunEvent::ProcessEnd(success) => {
-                let status = if success {
-                    "ended successfully"
-                } else {
-                    "failed"
-                };
-                println!("\tRun {status}");
-                if !success {
-                    return Err(Error::RunError);
+    for (i, handler) in join_handlers.into_iter().enumerate() {
+        match handler.join() {
+            Ok(board_results) => {
+                for (j, (logs, result)) in board_results {
+                    let key = (i, j);
+                    let board = &config.boards[i];
+                    let config = &board.configs[j];
+                    output.logs.insert(key, logs);
+
+                    match result {
+                        Some(result) => {
+                            info!("Results for {} - {}", board.name, config.name);
+                            info!("{}", result);
+                            output.results.insert(key, result);
+                        }
+                        None => {
+                            error!(
+                                "Results for {} - {} are not available",
+                                board.name, config.name
+                            );
+                        }
+                    }
                 }
             }
-            RunEvent::ProcessNewOutputLine(line) => print!("\t{}", line),
+            Err(err) => {
+                error!(
+                    "{} - Failed to join run board thread - {:?}",
+                    config.boards[i].name, err
+                );
+                continue;
+            }
         }
-    }
-    for handler in join_handlers {
-        let result = handler.join();
-        println!("join result {:?}", result);
     }
     Ok(())
 }
 
 fn run_all_configs(
     board: &EjBoard,
-    tx: Sender<RunEvent>,
     stop: Arc<AtomicBool>,
-) -> Result<Vec<String>> {
-    let mut results = Vec::new();
-    for board_config in board.configs.iter() {
+) -> HashMap<usize, (Vec<String>, Option<String>)> {
+    let mut outputs = HashMap::new();
+    for (i, board_config) in board.configs.iter().enumerate() {
+        let (tx, rx) = channel();
         let runner = Runner::new(board_config.run_script.clone(), Vec::new());
-        let exit_status = runner.run(tx.clone(), stop.clone()).map_err(|err| {
-            error!("Run failure for config {} - {:?}", board_config.name, err);
-            Error::RunError
-        })?;
-        if !exit_status.success() {
-            return Err(Error::RunError);
+        let stop = stop.clone();
+        let join_handler = thread::spawn(move || runner.run(tx, stop));
+
+        outputs.insert(i, (Vec::new(), None));
+
+        while let Ok(event) = rx.recv() {
+            match event {
+                RunEvent::ProcessCreationFailed(err) => {
+                    error!("{} - Failed to create process {}", board_config.name, err)
+                }
+                RunEvent::ProcessCreated => info!("{} - Run started", board_config.name),
+                RunEvent::ProcessEnd(success) => {
+                    if success {
+                        info!("{} - Run ended successfully", board_config.name);
+                    } else {
+                        error!("{} - Run failed", board_config.name);
+                    }
+                }
+                RunEvent::ProcessNewOutputLine(line) => {
+                    outputs.get_mut(&i).unwrap().0.push(line);
+                }
+            }
         }
-        let run_result = std::fs::read_to_string(board_config.results_path.clone()).unwrap();
-        results.push(run_result);
+        match join_handler.join() {
+            Ok(exit_status) => {
+                if let Ok(exit_status) = exit_status {
+                    if !exit_status.success() {
+                        error!("Process exited with {exit_status}");
+                        continue;
+                    }
+                } else {
+                    error!("Failed to run process for config {}", board_config.name);
+                    continue;
+                }
+            }
+            Err(err) => error!(
+                "Failed to join run thread for config {} - {:?}",
+                board_config.name, err
+            ),
+        }
+
+        match std::fs::read_to_string(board_config.results_path.clone()) {
+            Ok(run_result) => {
+                outputs.get_mut(&i).unwrap().1 = Some(run_result);
+            }
+            Err(err) => {
+                error!(
+                    "Failed to get result for config {} - {err}",
+                    board_config.name
+                );
+            }
+        }
     }
-    Ok(results)
+    outputs
 }

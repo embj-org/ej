@@ -2,6 +2,7 @@ mod build;
 mod cli;
 mod commands;
 mod connection;
+mod logs;
 mod run;
 
 use clap::Parser;
