@@ -19,6 +19,20 @@ pub struct EjJobStatusCreate {
     pub status: String,
 }
 
+impl EjJobStatus {
+    pub fn not_started() -> i32 {
+        0
+    }
+    pub fn running() -> i32 {
+        1
+    }
+    pub fn success() -> i32 {
+        2
+    }
+    pub fn failed() -> i32 {
+        3
+    }
+}
 impl EjJobStatusCreate {
     pub fn save(self, connection: &DbConnection) -> Result<EjJobStatus> {
         let conn = &mut connection.pool.get()?;

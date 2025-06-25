@@ -66,7 +66,7 @@ pub async fn handle_create_builder(server: &str, args: UserArgs) -> Result<()> {
 
     let payload = serde_json::to_string(&login_body)?;
     let login: EjClientLogin = client
-        .post("login", payload)
+        .post_and_deserialize("login", payload)
         .await
         .expect("Failed to login");
 

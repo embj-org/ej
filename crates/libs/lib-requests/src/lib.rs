@@ -1,6 +1,6 @@
 use std::{borrow::Borrow, error::Error, str::FromStr};
 
-use reqwest::{StatusCode, Url, header};
+use reqwest::{Response, StatusCode, Url, header};
 use serde::de::DeserializeOwned;
 
 pub struct ApiClient {
@@ -56,7 +56,22 @@ impl ApiClient {
             .expect("Couldn't create get request");
         Self::get_url(url).await
     }
-    pub async fn post<T: Into<reqwest::Body>, U: DeserializeOwned>(
+
+    pub async fn post<T: Into<reqwest::Body>>(
+        &self,
+        endpoint: &str,
+        body: T,
+    ) -> Result<Response, Box<dyn Error>> {
+        let url = reqwest::Url::from_str(&self.path(endpoint)).unwrap();
+        Ok(self
+            .client
+            .post(url)
+            .header("content-type", "application/json")
+            .body(body)
+            .send()
+            .await?)
+    }
+    pub async fn post_and_deserialize<T: Into<reqwest::Body>, U: DeserializeOwned>(
         &self,
         endpoint: &str,
         body: T,
@@ -72,8 +87,6 @@ impl ApiClient {
             .await?
             .text()
             .await?;
-
-        println!("Response {response}");
 
         Ok(serde_json::from_str(&response)?)
     }

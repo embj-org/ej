@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use ej::ej_config::ej_config::EjConfig;
-use ej::ej_job::api::EjRunOutput;
-use ej::ej_message::{EjClientMessage, EjServerMessage};
+use ej::ej_config::ej_config::{EjConfig, EjDispatcherConfig};
+use ej::ej_job::api::{EjBuildResult, EjRunOutput, EjRunResult};
+use ej::ej_message::EjServerMessage;
 use ej::prelude::*;
 use ej::web::ctx::AUTH_HEADER_PREFIX;
 use ej::{ej_builder::api::EjBuilderApi, web::ctx::AUTH_HEADER};
@@ -12,7 +12,7 @@ use lib_requests::ApiClient;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::Message;
-use tracing::{debug, error, warn};
+use tracing::{debug, error, info, trace, warn};
 use uuid::Uuid;
 
 use crate::build::build;
@@ -25,9 +25,9 @@ pub async fn handle_connect(
     id: Option<String>,
     token: Option<String>,
 ) -> Result<()> {
-    println!("Starting builder with config: {:?}", config_path);
+    info!("Starting builder with config: {:?}", config_path);
 
-    println!("Connecting to server: {}", server_url);
+    info!("Connecting to server: {}", server_url);
     let config = EjConfig::from_file(config_path)?;
 
     let id = Uuid::from_str(&id.or_else(|| std::env::var("EJB_ID").ok()).ok_or_else(|| {
@@ -53,11 +53,17 @@ pub async fn handle_connect(
 
     let body = serde_json::to_string(&builder)?;
     let builder: EjBuilderApi = client
-        .post("v1/builder/login", body)
+        .post_and_deserialize("v1/builder/login", body)
         .await
         .expect("Failed to login");
 
-    println!("Successfully logged in as builder {}", builder.id);
+    info!("Successfully logged in as builder {}", builder.id);
+    let body = serde_json::to_string(&config)?;
+    let dispatcher_config: EjDispatcherConfig = client
+        .post_and_deserialize("v1/builder/config", body)
+        .await
+        .expect("Failed to push config");
+    info!("Successfully pushed config");
 
     let ws_url = if server_url.starts_with("https") {
         server_url.replace("https", "ws")
@@ -84,19 +90,9 @@ pub async fn handle_connect(
         .await
         .map_err(|e| Error::Generic(format!("Failed to connect to WebSocket: {}", e)))?;
 
-    println!("WebSocket connection established");
+    info!("WebSocket connection established");
 
     let (mut write, mut read) = ws_stream.split();
-
-    let config_message = serde_json::to_string(&config)
-        .map_err(|e| Error::Generic(format!("Failed to serialize config: {}", e)))?;
-
-    write
-        .send(Message::Text(config_message.into()))
-        .await
-        .map_err(|e| Error::Generic(format!("Failed to send config: {}", e)))?;
-
-    println!("Configuration sent to server");
 
     while let Some(message) = read.next().await {
         match message {
@@ -118,29 +114,27 @@ pub async fn handle_connect(
                         if let Err(err) = dump_logs_to_temporary_file(&output) {
                             error!("Failed to dump logs to file - {err}");
                         }
-                        let response = match result {
-                            Ok(()) => EjClientMessage::BuildSuccess {
-                                job_id: job.id,
-                                builder_id: builder.id,
-                                config: config.clone(),
-                                logs: output.logs,
-                            },
-                            Err(err) => EjClientMessage::BuildFailure {
-                                job_id: job.id,
-                                builder_id: builder.id,
-                                error: err.to_string(),
-                            },
+                        let response = EjBuildResult {
+                            job_id: job.id,
+                            builder_id: builder.id,
+                            config: dispatcher_config.clone(),
+                            logs: output.logs,
+                            successful: result.is_ok(),
                         };
 
-                        let payload = serde_json::to_string(&response);
-
-                        match payload {
-                            Ok(payload) => match write.send(payload.into()).await {
-                                Ok(()) => debug!("Message sent to server {:?}", response),
-                                Err(err) => error!("Failed to send message to server {}", err),
+                        let body = serde_json::to_string(&response);
+                        match body {
+                            Ok(body) => match client.post("v1/builder/build_result", body).await {
+                                Ok(_) => trace!("Run results sent"),
+                                Err(err) => {
+                                    /* TODO: Store the results locally to send them later */
+                                    error!("Failed to send build results {err}");
+                                }
                             },
-                            Err(err) => error!("Failed to serialize payload {}", err),
-                        }
+                            Err(err) => {
+                                error!("Failed to serialize run results {}", err);
+                            }
+                        };
                     }
                     EjServerMessage::Run(job) => {
                         let mut output = EjRunOutput::new(&config);
@@ -148,34 +142,27 @@ pub async fn handle_connect(
                         if let Err(err) = dump_logs_to_temporary_file(&output) {
                             error!("Failed to dump logs to file - {err}");
                         }
-                        let response = match result {
-                            Ok(()) => EjClientMessage::RunSuccess {
-                                job_id: job.id,
-                                builder_id: builder.id,
-                                config: config.clone(),
-                                logs: output.logs,
-                                results: output.results,
-                            },
-                            Err(err) => EjClientMessage::RunFailure {
-                                job_id: job.id,
-                                builder_id: builder.id,
-                                error: err.to_string(),
-                            },
+                        let response = EjRunResult {
+                            job_id: job.id,
+                            builder_id: builder.id,
+                            config: dispatcher_config.clone(),
+                            logs: output.logs,
+                            results: output.results,
+                            successful: result.is_ok(),
                         };
-
-                        let payload = serde_json::to_string(&response);
-
-                        match payload {
-                            Ok(payload) => match write.send(payload.into()).await {
-                                Ok(()) => debug!("Message sent to server {:?}", response),
-                                Err(err) => error!("Failed to send message to server {}", err),
+                        let body = serde_json::to_string(&response);
+                        match body {
+                            Ok(body) => match client.post("v1/builder/run_result", body).await {
+                                Ok(_) => trace!("Run results sent"),
+                                Err(err) => {
+                                    /* TODO: Store the results locally to send them later */
+                                    error!("Failed to send run results {err}");
+                                }
                             },
-                            Err(err) => error!("Failed to serialize payload {}", err),
+                            Err(err) => {
+                                error!("Failed to serialize run results {}", err);
+                            }
                         }
-                    }
-                    EjServerMessage::Error(err) => {
-                        println!("Server error {err}");
-                        break;
                     }
                     EjServerMessage::Close => {
                         println!("Received close command from server");

@@ -12,11 +12,8 @@ use axum::{
 use ej::{
     ej_builder::api::EjBuilderApi,
     ej_client::api::{EjClientApi, EjClientLogin, EjClientLoginRequest, EjClientPost},
-    ej_config::ej_config::EjConfig,
-    ej_job::{
-        api::{EjDeployableJob, EjJob},
-        results::db::EjJobResultCreate,
-    },
+    ej_config::ej_config::{EjConfig, EjDispatcherConfig},
+    ej_job::api::{EjBuildResult, EjDeployableJob, EjJob, EjRunResult},
     ej_message::{EjClientMessage, EjServerMessage},
     require_permission,
     web::{
@@ -29,7 +26,6 @@ use tokio::{
     task::JoinHandle,
 };
 use tower_cookies::{CookieManagerLayer, Cookies};
-use tracing::error;
 
 use std::net::SocketAddr;
 use tower_http::{
@@ -52,7 +48,9 @@ fn v1(path: &str) -> String {
 pub async fn setup_api(dispatcher: Dispatcher) -> Result<JoinHandle<Result<()>>> {
     let builder_routes = Router::new()
         .route(&v1("builder/ws"), any(builder_handler))
-        .route(&v1("builder/config"), post(post_builder_config))
+        .route(&v1("builder/config"), post(push_config))
+        .route(&v1("builder/build_results"), post(build_results))
+        .route(&v1("builder/run_results"), post(run_results))
         .route_layer(require_permission!("builder"))
         .route_layer(middleware::from_fn(mw_require_auth));
 
@@ -128,15 +126,6 @@ async fn login_builder_api(
     Ok(Json(login_builder(payload, &cookies)?))
 }
 
-async fn post_builder_config(
-    State(mut state): State<Dispatcher>,
-    ctx: Ctx,
-    Json(payload): Json<EjConfig>,
-) -> Result<Json<EjConfig>> {
-    Ok(Json(
-        payload.create(&ctx.client.client_id, &mut state.connection)?,
-    ))
-}
 async fn dispatch_job(
     State(mut state): State<Dispatcher>,
     Json(payload): Json<EjJob>,
@@ -149,6 +138,31 @@ async fn dispatch_job(
         }
     }
     Ok(Json(job))
+}
+
+async fn push_config(
+    State(mut state): State<Dispatcher>,
+    ctx: Ctx,
+    Json(payload): Json<EjConfig>,
+) -> Result<Json<EjDispatcherConfig>> {
+    let config = EjDispatcherConfig::from_config(payload);
+    Ok(Json(
+        config.save(&ctx.client.client_id, &mut state.connection)?,
+    ))
+}
+
+async fn build_results(
+    State(mut state): State<Dispatcher>,
+    Json(payload): Json<EjBuildResult>,
+) -> Result<Json<EjBuildResult>> {
+    Ok(Json(payload.save(&mut state.connection)?))
+}
+
+async fn run_results(
+    State(mut state): State<Dispatcher>,
+    Json(payload): Json<EjRunResult>,
+) -> Result<Json<EjRunResult>> {
+    Ok(Json(payload.save(&mut state.connection)?))
 }
 
 /// The handler for the HTTP request (this gets called when the HTTP request lands at the start
@@ -180,7 +194,6 @@ async fn handle_socket(
     channel: (Sender<EjServerMessage>, Receiver<EjServerMessage>),
 ) {
     let (tx, mut rx) = channel;
-    // send a ping (unsupported by some browsers) just to kick things off and get a response
     if socket
         .send(Message::Ping(Bytes::from_static(&[1, 2, 3])))
         .await
@@ -255,45 +268,6 @@ async fn handle_socket(
                     let message: EjClientMessage = serde_json::from_str(&t).map_err(|_| {
                         Error::Generic(String::from("Failed to parse message from client"))
                     })?;
-
-                    match message {
-                        EjClientMessage::Results {
-                            job_id,
-                            config_id,
-                            results,
-                        } => {
-                            let job_result = EjJobResultCreate {
-                                ejjob_id: job_id,
-                                ejboard_config_id: config_id,
-                                result: results,
-                            };
-                            let job_result = job_result.save(&dispatcher.connection);
-                            match job_result {
-                                Ok(_) => todo!(),
-                                Err(err) => {
-                                    error!("Failed to save job result {err}");
-                                    tx.send(EjServerMessage::Error(err.to_string()));
-                                }
-                            }
-                        }
-                        EjClientMessage::JobLog {
-                            job_id: _,
-                            config_id: _,
-                            log: _,
-                        } => todo!(),
-                        EjClientMessage::BuildSuccess { .. } => todo!(),
-                        EjClientMessage::BuildFailure {
-                            job_id: _,
-                            builder_id: _,
-                            error: _,
-                        } => todo!(),
-                        EjClientMessage::RunSuccess { .. } => todo!(),
-                        EjClientMessage::RunFailure {
-                            job_id: _,
-                            builder_id: _,
-                            error: _,
-                        } => todo!(),
-                    }
                 }
                 Message::Close(c) => {
                     if let Some(cf) = c {
