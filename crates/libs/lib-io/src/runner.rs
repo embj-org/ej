@@ -225,7 +225,7 @@ mod test {
         for i in 1..=4 {
             assert_eq!(
                 rx.recv().expect("Didn't receive data from process"),
-                RunEvent::ProcessNewOutputLine(String::from(format!("Hello {}", i)))
+                RunEvent::ProcessNewOutputLine(String::from(format!("Hello {}\n", i)))
             );
         }
         stop.store(true, Ordering::Relaxed);
