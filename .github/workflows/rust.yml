@@ -15,15 +15,5 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Build
-      run: cargo build --verbose
-
-    - name: Run Tests
-      run: |
-        docker compose up -d
-        export $(cat ./dev-config/dev.env | xargs) 
-        sleep 3
-        cargo run &
-        sleep 1 # give the app enough time to start
-        cargo test --verbose --test '*'
-
+    - name: Build and test
+      run: cargo test --verbose
