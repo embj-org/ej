@@ -30,7 +30,7 @@ impl TryFrom<EjBuilder> for EjBuilderApi {
             .map(|p| String::from(p))
             .collect();
 
-        let claims = AuthToken::new(&value.ejclient_id, permissions, Self::TOKEN_EXPIRATION_TIME)?;
+        let claims = AuthToken::new_builder(&value.id, permissions, Self::TOKEN_EXPIRATION_TIME)?;
         let token = encode_token(&claims)?;
         Ok(Self {
             id: value.id,

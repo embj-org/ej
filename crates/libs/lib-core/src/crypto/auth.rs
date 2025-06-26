@@ -17,6 +17,11 @@ use super::auth_body::AuthBody;
 
 const ISS: &str = "EJ";
 
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub enum CtxWho {
+    Client = 0,
+    Builder = 1,
+}
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AuthToken {
     pub sub: Uuid,
@@ -30,6 +35,7 @@ pub struct AuthToken {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_data: Option<CtxClient>,
+    pub who: CtxWho,
 }
 
 #[derive(Debug, thiserror::Error, Clone)]
@@ -56,8 +62,8 @@ impl From<AuthError> for Error {
 }
 
 impl AuthToken {
-    pub fn new(
-        client_id: &Uuid,
+    pub fn new_client(
+        id: &Uuid,
         permissions: HashSet<String>,
         token_duration: TimeDelta,
     ) -> Result<Self> {
@@ -66,7 +72,7 @@ impl AuthToken {
             .ok_or_else(|| Error::AuthTokenCreation)?;
 
         Ok(Self {
-            sub: *client_id,
+            sub: *id,
             exp: expiration.timestamp(),
             iat: Utc::now().timestamp(),
             nbf: Utc::now().timestamp(),
@@ -74,6 +80,28 @@ impl AuthToken {
             jti: Uuid::new_v4(),
             permissions,
             client_data: None,
+            who: CtxWho::Client,
+        })
+    }
+    pub fn new_builder(
+        id: &Uuid,
+        permissions: HashSet<String>,
+        token_duration: TimeDelta,
+    ) -> Result<Self> {
+        let expiration = chrono::Utc::now()
+            .checked_add_signed(token_duration)
+            .ok_or_else(|| Error::AuthTokenCreation)?;
+
+        Ok(Self {
+            sub: *id,
+            exp: expiration.timestamp(),
+            iat: Utc::now().timestamp(),
+            nbf: Utc::now().timestamp(),
+            iss: String::from(ISS),
+            jti: Uuid::new_v4(),
+            permissions,
+            client_data: None,
+            who: CtxWho::Builder,
         })
     }
 }

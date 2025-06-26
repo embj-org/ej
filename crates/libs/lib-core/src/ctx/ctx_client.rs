@@ -9,13 +9,11 @@ use crate::{
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CtxClient {
-    pub client_id: Uuid,
+    pub id: Uuid,
 }
 
 impl CtxClient {
     pub fn create_builder(&self, conn: &mut DbConnection) -> Result<EjBuilderApi> {
-        Ok(EjBuilderCreate::new(self.client_id)
-            .create(conn)?
-            .try_into()?)
+        Ok(EjBuilderCreate::new(self.id).create(conn)?.try_into()?)
     }
 }

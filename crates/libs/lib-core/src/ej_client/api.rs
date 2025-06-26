@@ -76,7 +76,7 @@ impl EjClientApi {
 
     pub fn generate_token(&self, permissions: Vec<Permission>) -> Result<AuthBody> {
         let permissions: HashSet<String> = permissions.into_iter().map(|p| p.id).collect();
-        let claims = AuthToken::new(&self.id, permissions, Self::TOKEN_EXPIRATION_TIME)?;
+        let claims = AuthToken::new_client(&self.id, permissions, Self::TOKEN_EXPIRATION_TIME)?;
         encode_token(&claims)
     }
 }

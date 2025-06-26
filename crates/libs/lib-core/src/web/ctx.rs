@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::{
-    crypto::auth::{authenticate, decode_token, AuthError, AuthToken},
+    crypto::auth::{authenticate, decode_token, AuthError, AuthToken, CtxWho},
     ctx::ctx_client::CtxClient,
     db::connection::DbConnection,
     ej_builder::api::EjBuilderApi,
@@ -22,6 +22,7 @@ use uuid::Uuid;
 pub struct Ctx {
     pub client: CtxClient,
     pub permissions: HashSet<String>,
+    pub who: CtxWho,
 }
 
 pub const AUTH_TOKEN_COOKIE: &str = "auth-token";
@@ -29,9 +30,10 @@ pub const AUTH_HEADER: &str = "Authorization";
 pub const AUTH_HEADER_PREFIX: &str = "Bearer ";
 
 impl Ctx {
-    pub fn new(client_id: Uuid, permissions: HashSet<String>) -> Self {
+    pub fn new(id: Uuid, who: CtxWho, permissions: HashSet<String>) -> Self {
         Self {
-            client: CtxClient { client_id },
+            client: CtxClient { id },
+            who,
             permissions,
         }
     }
@@ -63,7 +65,7 @@ pub async fn mw_ctx_resolver(
             }
         });
 
-    let ctx = token.map(|token: AuthToken| Ctx::new(token.sub, token.permissions));
+    let ctx = token.map(|token: AuthToken| Ctx::new(token.sub, token.who, token.permissions));
 
     if ctx.is_err() {
         cookies.remove(Cookie::from(AUTH_TOKEN_COOKIE));
