@@ -10,10 +10,8 @@ members = [
 	"crates/libs/lib-requests",
 
 	# Services
-	"crates/services/dispatcher",
-	"crates/services/builder",
-
-	# Tools 
-	"crates/tools/ejcli",
+	"crates/services/ejdispatcher",
+	"crates/services/ejbuilder",
+	"crates/services/ejcli",
 ]
 resolver = "2"
