@@ -7,11 +7,11 @@ use uuid::Uuid;
 
 #[derive(Queryable, Selectable, Identifiable, Debug, Clone)]
 #[diesel(table_name = crate::schema::ejconfig)]
-#[diesel(belongs_to(EjClient))]
+#[diesel(belongs_to(EjBuilder))]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct EjConfigDb {
     pub id: Uuid,
-    pub ejclient_id: Uuid,
+    pub ejbuilder_id: Uuid,
     pub hash: String,
     pub version: String,
     pub created_at: DateTime<Utc>,
@@ -21,7 +21,7 @@ pub struct EjConfigDb {
 #[derive(Insertable, Debug)]
 #[diesel(table_name = crate::schema::ejconfig)]
 pub struct NewEjConfigDb {
-    pub ejclient_id: Uuid,
+    pub ejbuilder_id: Uuid,
     pub version: String,
     pub hash: String,
 }
@@ -40,9 +40,9 @@ impl EjConfigDb {
 }
 
 impl NewEjConfigDb {
-    pub fn new(client_id: Uuid, config_version: String, config_hash: String) -> Self {
+    pub fn new(builder_id: Uuid, config_version: String, config_hash: String) -> Self {
         Self {
-            ejclient_id: client_id,
+            ejbuilder_id: builder_id,
             version: config_version,
             hash: config_hash,
         }
@@ -68,7 +68,7 @@ impl EjConfigDb {
     #[diesel::dsl::auto_type(no_type_alias)]
     pub fn client_config<'a>(client_id: &'a Uuid, config_hash: &'a str) -> _ {
         crate::schema::ejconfig::dsl::ejconfig
-            .filter(ejclient_id.eq(client_id))
+            .filter(ejbuilder_id.eq(client_id))
             .filter(hash.eq(config_hash))
     }
 }

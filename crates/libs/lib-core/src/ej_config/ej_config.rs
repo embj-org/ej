@@ -53,15 +53,15 @@ impl EjDispatcherConfig {
                 .collect(),
         }
     }
-    pub fn save(self, client_id: &Uuid, conn: &mut DbConnection) -> Result<Self> {
+    pub fn save(self, builder_id: &Uuid, conn: &mut DbConnection) -> Result<Self> {
         let hash = generate_hash(&self)?;
-        if let Ok(_) = EjConfigDb::fetch_client_config(conn, client_id, &hash) {
+        if let Ok(_) = EjConfigDb::fetch_client_config(conn, builder_id, &hash) {
             info!("Config already exists");
             return Ok(self);
         }
-        info!("Config with hash {hash} not found for client {client_id}. Creating one...");
+        info!("Config with hash {hash} not found for builder {builder_id}. Creating one...");
         let result = self.clone();
-        let config = NewEjConfigDb::new(*client_id, self.global.version, hash).save(conn)?;
+        let config = NewEjConfigDb::new(*builder_id, self.global.version, hash).save(conn)?;
         for board in self.boards {
             NewEjBoardDb::new(board.id, config.id.clone(), board.name, board.description)
                 .save(conn)?;

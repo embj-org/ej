@@ -62,7 +62,7 @@ diesel::table! {
 diesel::table! {
     ejconfig (id) {
         id -> Uuid,
-        ejclient_id -> Uuid,
+        ejbuilder_id -> Uuid,
         #[max_length = 50]
         version -> Varchar,
         #[max_length = 255]
@@ -142,7 +142,7 @@ diesel::joinable!(ejboard_config -> ejboard (ejboard_id));
 diesel::joinable!(ejboard_config_tag -> ejboard_config (ejboard_config_id));
 diesel::joinable!(ejboard_config_tag -> ejtag (ejtag_id));
 diesel::joinable!(ejbuilder -> ejclient (ejclient_id));
-diesel::joinable!(ejconfig -> ejclient (ejclient_id));
+diesel::joinable!(ejconfig -> ejbuilder (ejbuilder_id));
 diesel::joinable!(ejjob -> ejjobstatus (status));
 diesel::joinable!(ejjob -> ejjobtype (job_type));
 diesel::joinable!(ejjoblog -> ejboard_config (ejboard_config_id));

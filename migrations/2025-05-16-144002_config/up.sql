@@ -2,7 +2,7 @@
 
 CREATE TABLE ejconfig (
 	id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-	ejclient_id uuid NOT NULL REFERENCES ejclient(id),
+	ejbuilder_id uuid NOT NULL REFERENCES ejbuilder(id),
 	version VARCHAR(50) NOT NULL,
 	hash VARCHAR(255) NOT NULL,
 	created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
