@@ -1,5 +1,8 @@
 use clap::{Args, Parser, Subcommand};
-use ej::{ej_client::api::EjClientPost, ej_job::api::EjJob};
+use ej::{
+    ej_client::api::EjClientPost,
+    ej_job::api::{EjJob, EjJobType},
+};
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -12,8 +15,17 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    /// Dispatch a new job
-    Dispatch {
+    /// Dispatch a new build job
+    DispatchBuild {
+        /// Path to the EJD's unix socket
+        #[arg(short, long)]
+        socket: PathBuf,
+        #[command(flatten)]
+        job: DispatchArgs,
+    },
+
+    /// Dispatch a new run job
+    DispatchRun {
         /// Path to the EJD's unix socket
         #[arg(short, long)]
         socket: PathBuf,

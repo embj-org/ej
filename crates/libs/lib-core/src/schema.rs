@@ -77,8 +77,8 @@ diesel::table! {
         id -> Uuid,
         commit_hash -> Varchar,
         remote_url -> Varchar,
-        build_status -> Int4,
-        run_status -> Int4,
+        job_type -> Int4,
+        status -> Int4,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
     }
@@ -113,6 +113,13 @@ diesel::table! {
 }
 
 diesel::table! {
+    ejjobtype (id) {
+        id -> Int4,
+        job_type -> Varchar,
+    }
+}
+
+diesel::table! {
     ejtag (id) {
         id -> Uuid,
         #[max_length = 100]
@@ -136,6 +143,8 @@ diesel::joinable!(ejboard_config_tag -> ejboard_config (ejboard_config_id));
 diesel::joinable!(ejboard_config_tag -> ejtag (ejtag_id));
 diesel::joinable!(ejbuilder -> ejclient (ejclient_id));
 diesel::joinable!(ejconfig -> ejclient (ejclient_id));
+diesel::joinable!(ejjob -> ejjobstatus (status));
+diesel::joinable!(ejjob -> ejjobtype (job_type));
 diesel::joinable!(ejjoblog -> ejboard_config (ejboard_config_id));
 diesel::joinable!(ejjoblog -> ejjob (ejjob_id));
 diesel::joinable!(ejjobresult -> ejboard_config (ejboard_config_id));
@@ -153,6 +162,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     ejjoblog,
     ejjobresult,
     ejjobstatus,
+    ejjobtype,
     ejtag,
     permission,
 );

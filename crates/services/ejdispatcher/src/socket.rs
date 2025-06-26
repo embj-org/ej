@@ -1,5 +1,6 @@
 use ej::ej_client::db::EjClient;
 use ej::ej_client_permission::{ClientPermission, NewClientPermission};
+use ej::ej_job::api::EjJobType;
 use ej::ej_message::{EjServerMessage, EjSocketMessage};
 use ej::permission::Permission;
 use ej::prelude::*;
@@ -61,7 +62,11 @@ async fn handle_client(mut dispatcher: Dispatcher, stream: UnixStream) -> Result
                             let builders = dispatcher.builders.lock().await;
                             let job = job.create(&mut dispatcher.connection)?;
                             for builder in builders.iter() {
-                                let message = EjServerMessage::Run(job.clone());
+                                let message = if job.job_type == EjJobType::Run {
+                                    EjServerMessage::Run(job.clone())
+                                } else {
+                                    EjServerMessage::Build(job.clone())
+                                };
                                 if let Err(err) = builder.tx.send(message).await {
                                     tracing::error!(
                                         "Failed to dispatch builder {:?} - {err}",

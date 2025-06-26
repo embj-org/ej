@@ -1,8 +1,7 @@
-use ej::prelude::*;
+use ej::{ej_job::api::EjJobType, prelude::*};
 
 mod cli;
 mod commands;
-mod models;
 
 use clap::Parser;
 use cli::{Cli, Commands};
@@ -16,7 +15,13 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     let result = match cli.command {
-        Commands::Dispatch { socket, job } => handle_dispatch(&socket, job).await,
+        Commands::DispatchBuild { socket, job } => {
+            handle_dispatch(&socket, job, EjJobType::Build).await
+        }
+
+        Commands::DispatchRun { socket, job } => {
+            handle_dispatch(&socket, job, EjJobType::Run).await
+        }
         Commands::CreateRootUser { socket, client } => {
             handle_create_root_user(&socket, client).await
         }

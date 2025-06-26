@@ -1,7 +1,7 @@
 use ej::{
     ej_builder::api::EjBuilderApi,
     ej_client::api::{EjClientLogin, EjClientLoginRequest, EjClientPost},
-    ej_job::api::EjJob,
+    ej_job::api::{EjJob, EjJobType},
     ej_message::EjSocketMessage,
     prelude::*,
 };
@@ -15,11 +15,21 @@ use tokio::{
 
 use crate::cli::{DispatchArgs, UserArgs};
 
-pub async fn handle_dispatch(socket_path: &PathBuf, job: DispatchArgs) -> Result<()> {
+pub async fn handle_dispatch(
+    socket_path: &PathBuf,
+    job: DispatchArgs,
+    job_type: EjJobType,
+) -> Result<()> {
     info!("Dispatching job");
     let mut stream = UnixStream::connect(socket_path).await?;
 
-    let job = EjJob::from(job);
+    let job = EjJob {
+        job_type: job_type,
+        commit_hash: job.commit_hash,
+        remote_url: job.remote_url,
+        remote_token: job.remote_token,
+    };
+
     let message = EjSocketMessage::Dispatch(job);
     let payload = serde_json::to_string(&message)?;
     stream.write_all(payload.as_bytes()).await;

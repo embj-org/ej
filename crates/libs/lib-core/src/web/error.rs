@@ -11,6 +11,7 @@ impl IntoResponse for Error {
             Error::WrongCredentials => (StatusCode::UNAUTHORIZED, "Invalid credentials"),
             Error::MissingCredentials => (StatusCode::UNAUTHORIZED, "Missing credentials"),
             Error::ApiForbidden => (StatusCode::FORBIDDEN, "Access forbidden"),
+            Error::InvalidJobType => (StatusCode::BAD_REQUEST, "Invalid job type"),
             Error::AuthTokenCreation
             | Error::Generic(_)
             | Error::IO(_)

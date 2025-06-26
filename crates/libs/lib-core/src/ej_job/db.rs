@@ -1,4 +1,5 @@
 use super::status::db::EjJobStatus;
+use crate::ej_job::job_type::db::EjJobTypeDb;
 use crate::prelude::*;
 use crate::{db::connection::DbConnection, schema::ejjob::dsl::*};
 use chrono::{DateTime, Utc};
@@ -14,8 +15,8 @@ pub struct EjJobDb {
     pub id: Uuid,
     pub commit_hash: String,
     pub remote_url: String,
-    pub build_status: i32,
-    pub run_status: i32,
+    pub job_type: i32,
+    pub status: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -55,12 +56,12 @@ impl EjJobDb {
         Ok(job.into())
     }
 
-    pub fn fetch_build_status(&self, connection: &DbConnection) -> Result<EjJobStatus> {
-        Ok(EjJobStatus::fetch_by_id(self.build_status, connection)?)
+    pub fn fetch_status(&self, connection: &DbConnection) -> Result<EjJobStatus> {
+        Ok(EjJobStatus::fetch_by_id(self.status, connection)?)
     }
 
-    pub fn fetch_run_status(&self, connection: &DbConnection) -> Result<EjJobStatus> {
-        Ok(EjJobStatus::fetch_by_id(self.run_status, connection)?)
+    pub fn fetch_type(&self, connection: &DbConnection) -> Result<EjJobTypeDb> {
+        Ok(EjJobTypeDb::fetch_by_id(self.job_type, connection)?)
     }
 
     pub fn fetch_all(connection: &DbConnection) -> Result<Vec<Self>> {
@@ -68,19 +69,10 @@ impl EjJobDb {
         Ok(EjJobDb::table().select(EjJobDb::as_select()).load(conn)?)
     }
 
-    pub fn update_build_status(&self, new_status: i32, connection: &DbConnection) -> Result<Self> {
+    pub fn update_status(&self, new_status: i32, connection: &DbConnection) -> Result<Self> {
         let conn = &mut connection.pool.get()?;
         Ok(diesel::update(EjJobDb::by_id(&self.id))
-            .set(build_status.eq(new_status))
-            .returning(EjJobDb::as_returning())
-            .get_result(conn)?
-            .into())
-    }
-
-    pub fn update_run_status(&self, new_status: i32, connection: &DbConnection) -> Result<Self> {
-        let conn = &mut connection.pool.get()?;
-        Ok(diesel::update(EjJobDb::by_id(&self.id))
-            .set(run_status.eq(new_status))
+            .set(status.eq(new_status))
             .returning(EjJobDb::as_returning())
             .get_result(conn)?
             .into())

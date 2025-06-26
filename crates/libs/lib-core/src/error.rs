@@ -26,6 +26,9 @@ pub enum Error {
     #[error(transparent)]
     Json(#[from] serde_json::Error),
 
+    #[error("Invalid Job Type")]
+    InvalidJobType,
+
     /* Builder Errors */
     #[error("Build error")]
     BuildError,

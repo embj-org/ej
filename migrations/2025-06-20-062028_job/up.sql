@@ -2,10 +2,10 @@
 
 CREATE TABLE ejjobtype (
 	id SERIAL PRIMARY KEY,
-	type VARCHAR NOT NULL
+	job_type VARCHAR NOT NULL
 );
 
-INSERT INTO ejjobstatus (id, type) VALUES 
+INSERT INTO ejjobtype (id, job_type) VALUES 
 	(0, 'Build'),
 	(1, 'Run');
 

@@ -14,8 +14,16 @@ use crate::{
     },
     prelude::*,
 };
+
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub enum EjJobType {
+    Build = 0,
+    Run = 1,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EjJob {
+    pub job_type: EjJobType,
     pub commit_hash: String,
     pub remote_url: String,
     pub remote_token: Option<String>,
@@ -24,6 +32,7 @@ pub struct EjJob {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EjDeployableJob {
     pub id: Uuid,
+    pub job_type: EjJobType,
     pub commit_hash: String,
     pub remote_url: String,
     pub remote_token: Option<String>,
@@ -79,6 +88,7 @@ impl EjJob {
 
         Ok(EjDeployableJob {
             id: job.id,
+            job_type: job.job_type.into(),
             commit_hash: job.commit_hash,
             remote_url: job.remote_url,
             remote_token: self.remote_token,
@@ -88,13 +98,17 @@ impl EjJob {
 impl EjBuildResult {
     pub fn save(self, connection: &mut DbConnection) -> Result<Self> {
         let job = EjJobDb::fetch_by_id(&self.job_id, connection)?;
+        let job_type: EjJobType = job.fetch_type(connection)?.into();
+        if job_type != EjJobType::Build {
+            return Err(Error::InvalidJobType);
+        }
 
         let job_status = if self.successful {
             EjJobStatus::success()
         } else {
             EjJobStatus::failed()
         };
-        job.update_run_status(job_status, connection)?;
+        job.update_status(job_status, connection)?;
 
         for ((board_idx, board_config_idx), logs) in self.logs.iter() {
             let board = &self.config.boards[*board_idx];
@@ -114,12 +128,17 @@ impl EjRunResult {
     pub fn save(self, connection: &mut DbConnection) -> Result<Self> {
         let job = EjJobDb::fetch_by_id(&self.job_id, connection)?;
 
+        let job_type: EjJobType = job.fetch_type(connection)?.into();
+        if job_type != EjJobType::Run {
+            return Err(Error::InvalidJobType);
+        }
+
         let job_status = if self.successful {
             EjJobStatus::success()
         } else {
             EjJobStatus::failed()
         };
-        job.update_run_status(job_status, connection)?;
+        job.update_status(job_status, connection)?;
 
         for ((board_idx, board_config_idx), logs) in self.logs.iter() {
             let board = &self.config.boards[*board_idx];
