@@ -1,6 +1,6 @@
-use ej::ej_config::ej_config::EjConfig;
+use ej::ej_config::ej_config::EjDispatcherConfig;
 use ej::prelude::*;
-use ej::{ej_config::ej_board::EjBoard, ej_job::api::EjRunOutput};
+use ej::{ej_config::ej_board::EjDispatcherBoard, ej_job::results::api::EjRunOutput};
 use lib_io::runner::{RunEvent, Runner};
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
@@ -8,8 +8,9 @@ use std::sync::mpsc::channel;
 use std::sync::Arc;
 use std::thread;
 use tracing::{error, info};
+use uuid::Uuid;
 
-pub fn run(config: &EjConfig, output: &mut EjRunOutput) -> Result<()> {
+pub fn run(config: &EjDispatcherConfig, output: &mut EjRunOutput) -> Result<()> {
     let stop = Arc::new(AtomicBool::new(false));
 
     let mut join_handlers = Vec::new();
@@ -20,12 +21,15 @@ pub fn run(config: &EjConfig, output: &mut EjRunOutput) -> Result<()> {
     }
 
     for (i, handler) in join_handlers.into_iter().enumerate() {
+        let board = &config.boards[i];
         match handler.join() {
             Ok(board_results) => {
-                for (j, (logs, result)) in board_results {
-                    let key = (i, j);
-                    let board = &config.boards[i];
-                    let config = &board.configs[j];
+                for (key, (logs, result)) in board_results {
+                    let config = board
+                        .configs
+                        .iter()
+                        .find(|c| c.id == key)
+                        .expect("Failed to find config in map");
                     output.logs.insert(key, logs);
 
                     match result {
@@ -56,17 +60,17 @@ pub fn run(config: &EjConfig, output: &mut EjRunOutput) -> Result<()> {
 }
 
 fn run_all_configs(
-    board: &EjBoard,
+    board: &EjDispatcherBoard,
     stop: Arc<AtomicBool>,
-) -> HashMap<usize, (Vec<String>, Option<String>)> {
+) -> HashMap<Uuid, (Vec<String>, Option<String>)> {
     let mut outputs = HashMap::new();
-    for (i, board_config) in board.configs.iter().enumerate() {
+    for board_config in board.configs.iter() {
         let (tx, rx) = channel();
         let runner = Runner::new(board_config.run_script.clone(), Vec::new());
         let stop = stop.clone();
         let join_handler = thread::spawn(move || runner.run(tx, stop));
 
-        outputs.insert(i, (Vec::new(), None));
+        outputs.insert(board_config.id, (Vec::new(), None));
 
         while let Ok(event) = rx.recv() {
             match event {
@@ -82,7 +86,7 @@ fn run_all_configs(
                     }
                 }
                 RunEvent::ProcessNewOutputLine(line) => {
-                    outputs.get_mut(&i).unwrap().0.push(line);
+                    outputs.get_mut(&board_config.id).unwrap().0.push(line);
                 }
             }
         }
@@ -106,7 +110,7 @@ fn run_all_configs(
 
         match std::fs::read_to_string(board_config.results_path.clone()) {
             Ok(run_result) => {
-                outputs.get_mut(&i).unwrap().1 = Some(run_result);
+                outputs.get_mut(&board_config.id).unwrap().1 = Some(run_result);
             }
             Err(err) => {
                 error!(

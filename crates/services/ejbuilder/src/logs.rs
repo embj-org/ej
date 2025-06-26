@@ -1,7 +1,6 @@
 use std::{fs::File, io::Write, path::PathBuf};
 
-use ej::ej_job::api::EjRunOutput;
-use ej::prelude::*;
+use ej::{ej_job::results::api::EjRunOutput, prelude::*};
 use strip_ansi_escapes::strip;
 use tracing::{error, info};
 
@@ -43,10 +42,9 @@ fn dump_logs_internal<W: Write>(
     mut writer: W,
     strip_ansi: bool,
 ) -> Result<()> {
-    for (board_idx, board) in output.config.boards.iter().enumerate() {
-        for (config_idx, board_config) in board.configs.iter().enumerate() {
-            let key = (board_idx, config_idx);
-
+    for board in output.config.boards.iter() {
+        for board_config in board.configs.iter() {
+            let key = board_config.id;
             if let Some(logs) = output.logs.get(&key) {
                 writeln!(writer, "========================")?;
                 writeln!(

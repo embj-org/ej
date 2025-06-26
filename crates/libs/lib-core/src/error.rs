@@ -29,9 +29,15 @@ pub enum Error {
     #[error("Invalid Job Type")]
     InvalidJobType,
 
+    #[error("Internal task communication channel error")]
+    ChannelSendError,
+
     /* Builder Errors */
     #[error("Build error")]
     BuildError,
+
+    #[error("No builders available")]
+    NoBuildersAvailable,
 
     /* Run Errors */
     #[error("Run error")]

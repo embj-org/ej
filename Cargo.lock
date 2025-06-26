@@ -634,9 +634,11 @@ name = "ejd"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "chrono",
  "ej",
  "futures",
  "futures-util",
+ "serde",
  "serde_json",
  "tokio",
  "tokio-tungstenite",
@@ -644,6 +646,7 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]

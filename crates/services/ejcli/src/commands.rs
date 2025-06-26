@@ -2,7 +2,7 @@ use ej::{
     ej_builder::api::EjBuilderApi,
     ej_client::api::{EjClientLogin, EjClientLoginRequest, EjClientPost},
     ej_job::api::{EjJob, EjJobType},
-    ej_message::EjSocketMessage,
+    ej_message::{EjSocketClientMessage, EjSocketServerMessage},
     prelude::*,
 };
 use lib_requests::ApiClient;
@@ -29,7 +29,7 @@ pub async fn handle_dispatch(
         remote_token: job.remote_token,
     };
 
-    let message = EjSocketMessage::Dispatch(job);
+    let message = EjSocketClientMessage::Dispatch(job);
     let payload = serde_json::to_string(&message)?;
     stream.write_all(payload.as_bytes()).await;
     stream.write_all(b"\n").await;
@@ -37,6 +37,7 @@ pub async fn handle_dispatch(
 
     let mut response = String::new();
     stream.read_to_string(&mut response).await?;
+    let response: EjSocketServerMessage = serde_json::from_str(&response)?;
 
     println!("{:?}", response);
     Ok(())
@@ -50,7 +51,7 @@ pub async fn handle_create_root_user(socket_path: &PathBuf, args: UserArgs) -> R
         .password
         .unwrap_or(rpassword::prompt_password("Password > ").expect("Failed to get password"));
 
-    let message = EjSocketMessage::CreateRootUser(EjClientPost { name, secret });
+    let message = EjSocketClientMessage::CreateRootUser(EjClientPost { name, secret });
     let payload = serde_json::to_string(&message)?;
     stream.write_all(payload.as_bytes()).await;
     stream.write_all(b"\n").await;
@@ -58,6 +59,7 @@ pub async fn handle_create_root_user(socket_path: &PathBuf, args: UserArgs) -> R
 
     let mut response = String::new();
     stream.read_to_string(&mut response).await?;
+    let response: EjSocketServerMessage = serde_json::from_str(&response)?;
     println!("{:?}", response);
     Ok(())
 }

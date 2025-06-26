@@ -22,16 +22,19 @@ async fn main() -> Result<()> {
         .init();
 
     let db = DbConnection::new(&DbConfig::from_env());
-    let dispatcher = Dispatcher::new(db);
+    let (dispatcher, dispatcher_handle) = Dispatcher::create(db);
     let api_handle = setup_api(dispatcher.clone()).await?;
     let socket_handle = setup_socket(dispatcher).await?;
 
     tokio::select! {
+        result = dispatcher_handle => {
+            tracing::error!("Dispatcher task stopped: {:?}", result);
+        }
         result = api_handle => {
             tracing::error!("API server stopped: {:?}", result);
         }
         result = socket_handle => {
-            tracing::error!("Socket server stopped: {:?}", result);
+            tracing::error!("Socket task stopped: {:?}", result);
         }
         _ = tokio::signal::ctrl_c() => {
             tracing::info!("Shutting down");

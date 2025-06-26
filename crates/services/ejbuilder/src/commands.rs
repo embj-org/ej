@@ -1,5 +1,5 @@
-use ej::ej_config::ej_config::EjConfig;
-use ej::ej_job::api::EjRunOutput;
+use ej::ej_config::ej_config::{EjConfig, EjDispatcherConfig};
+use ej::ej_job::results::api::EjRunOutput;
 use std::io::{stderr, stdout};
 use std::path::PathBuf;
 
@@ -39,6 +39,7 @@ pub fn handle_run_and_build(config_path: &PathBuf) -> Result<()> {
     println!("Validating configuration file: {:?}", config_path);
 
     let config = EjConfig::from_file(config_path)?;
+    let config = EjDispatcherConfig::from_config(config);
     let mut output = EjRunOutput::new(&config);
     let result = build(&config, &mut output);
     if result.is_ok() {

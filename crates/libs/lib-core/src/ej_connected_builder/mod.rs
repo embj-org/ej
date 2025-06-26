@@ -1,11 +1,11 @@
 use std::net::SocketAddr;
 
-use crate::{ctx::ctx_client::CtxClient, ej_message::EjServerMessage};
+use crate::{ctx::ctx_client::CtxClient, ej_message::EjServerMessage, web::ctx::Ctx};
 use tokio::sync::mpsc::Sender;
 
 #[derive(Debug, Clone)]
 pub struct EjConnectedBuilder {
-    pub client: CtxClient,
+    pub builder: CtxClient,
     pub tx: Sender<EjServerMessage>,
     pub addr: SocketAddr,
 }
@@ -13,7 +13,7 @@ pub struct EjConnectedBuilder {
 impl CtxClient {
     pub fn connect(self, tx: Sender<EjServerMessage>, addr: SocketAddr) -> EjConnectedBuilder {
         EjConnectedBuilder {
-            client: self,
+            builder: self,
             tx,
             addr,
         }

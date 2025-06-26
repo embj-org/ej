@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 use ej::ej_config::ej_config::{EjConfig, EjDispatcherConfig};
-use ej::ej_job::api::{EjBuildResult, EjRunOutput, EjRunResult};
+use ej::ej_job::results::api::{EjBuildResult, EjRunOutput, EjRunResult};
 use ej::ej_message::EjServerMessage;
 use ej::prelude::*;
 use ej::web::ctx::AUTH_HEADER_PREFIX;
@@ -59,7 +59,7 @@ pub async fn handle_connect(
 
     info!("Successfully logged in as builder {}", builder.id);
     let body = serde_json::to_string(&config)?;
-    let dispatcher_config: EjDispatcherConfig = client
+    let config: EjDispatcherConfig = client
         .post_and_deserialize("v1/builder/config", body)
         .await
         .expect("Failed to push config");
@@ -97,7 +97,7 @@ pub async fn handle_connect(
     while let Some(message) = read.next().await {
         match message {
             Ok(Message::Text(text)) => {
-                debug!("Received message: {}", text);
+                info!("Received message: {}", text);
 
                 let server_message: EjServerMessage = match serde_json::from_str(&text) {
                     Ok(msg) => msg,
@@ -117,7 +117,6 @@ pub async fn handle_connect(
                         let response = EjBuildResult {
                             job_id: job.id,
                             builder_id: builder.id,
-                            config: dispatcher_config.clone(),
                             logs: output.logs,
                             successful: result.is_ok(),
                         };
@@ -125,14 +124,14 @@ pub async fn handle_connect(
                         let body = serde_json::to_string(&response);
                         match body {
                             Ok(body) => match client.post("v1/builder/build_result", body).await {
-                                Ok(_) => trace!("Run results sent"),
+                                Ok(response) => info!("Build results sent {:?}", response),
                                 Err(err) => {
                                     /* TODO: Store the results locally to send them later */
                                     error!("Failed to send build results {err}");
                                 }
                             },
                             Err(err) => {
-                                error!("Failed to serialize run results {}", err);
+                                error!("Failed to serialize {:?} run results {}", response, err);
                             }
                         };
                     }
@@ -145,7 +144,6 @@ pub async fn handle_connect(
                         let response = EjRunResult {
                             job_id: job.id,
                             builder_id: builder.id,
-                            config: dispatcher_config.clone(),
                             logs: output.logs,
                             results: output.results,
                             successful: result.is_ok(),

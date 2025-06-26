@@ -3,12 +3,12 @@ use std::{
     thread,
 };
 
-use ej::{ej_config::ej_config::EjConfig, ej_job::api::EjRunOutput};
+use ej::{ej_config::ej_config::EjDispatcherConfig, ej_job::results::api::EjRunOutput};
 use lib_io::runner::{RunEvent, Runner};
 
 use ej::prelude::*;
 use tracing::{error, info};
-pub fn build(config: &EjConfig, output: &mut EjRunOutput) -> Result<()> {
+pub fn build(config: &EjDispatcherConfig, output: &mut EjRunOutput) -> Result<()> {
     let board_count = config.boards.len();
     for (board_idx, board) in config.boards.iter().enumerate() {
         info!("Board {}/{}: {}", board_idx + 1, board_count, board.name);
@@ -41,7 +41,7 @@ pub fn build(config: &EjConfig, output: &mut EjRunOutput) -> Result<()> {
                         }
                     }
                     RunEvent::ProcessNewOutputLine(line) => {
-                        let key = (board_idx, config_idx);
+                        let key = board_config.id;
                         if let Some(logs) = output.logs.get_mut(&key) {
                             logs.push(line);
                         } else {

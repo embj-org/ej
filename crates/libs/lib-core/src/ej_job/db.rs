@@ -17,6 +17,8 @@ pub struct EjJobDb {
     pub remote_url: String,
     pub job_type: i32,
     pub status: i32,
+    pub dispatched_at: Option<DateTime<Utc>>,
+    pub finished_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -26,6 +28,7 @@ pub struct EjJobDb {
 pub struct EjJobCreate {
     pub commit_hash: String,
     pub remote_url: String,
+    pub job_type: i32,
 }
 
 impl EjJobCreate {

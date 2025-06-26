@@ -12,6 +12,7 @@ impl IntoResponse for Error {
             Error::MissingCredentials => (StatusCode::UNAUTHORIZED, "Missing credentials"),
             Error::ApiForbidden => (StatusCode::FORBIDDEN, "Access forbidden"),
             Error::InvalidJobType => (StatusCode::BAD_REQUEST, "Invalid job type"),
+            Error::NoBuildersAvailable => (StatusCode::NOT_FOUND, "No builders available"),
             Error::AuthTokenCreation
             | Error::Generic(_)
             | Error::IO(_)
@@ -23,7 +24,10 @@ impl IntoResponse for Error {
             | Error::Json(_)
             | Error::Toml(_)
             | Error::BuildError
-            | Error::RunError => (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error"),
+            | Error::RunError
+            | Error::ChannelSendError => {
+                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error")
+            }
         };
 
         let body = Json(json!({

@@ -13,7 +13,10 @@ use ej::{
     ej_builder::api::EjBuilderApi,
     ej_client::api::{EjClientApi, EjClientLogin, EjClientLoginRequest, EjClientPost},
     ej_config::ej_config::{EjConfig, EjDispatcherConfig},
-    ej_job::api::{EjBuildResult, EjDeployableJob, EjJob, EjRunResult},
+    ej_job::{
+        api::{EjDeployableJob, EjJob},
+        results::api::{EjBuildResult, EjJobResult, EjRunResult},
+    },
     ej_message::{EjClientMessage, EjServerMessage},
     require_permission,
     web::{
@@ -21,11 +24,9 @@ use ej::{
         mw_auth::mw_require_auth,
     },
 };
-use tokio::{
-    sync::mpsc::{channel, Receiver, Sender},
-    task::JoinHandle,
-};
+use tokio::{sync::mpsc::channel, task::JoinHandle};
 use tower_cookies::{CookieManagerLayer, Cookies};
+use tracing::info;
 
 use std::net::SocketAddr;
 use tower_http::{
@@ -49,8 +50,11 @@ pub async fn setup_api(dispatcher: Dispatcher) -> Result<JoinHandle<Result<()>>>
     let builder_routes = Router::new()
         .route(&v1("builder/ws"), any(builder_handler))
         .route(&v1("builder/config"), post(push_config))
-        .route(&v1("builder/build_results"), post(build_results))
-        .route(&v1("builder/run_results"), post(run_results))
+        .route(
+            &v1("builder/build_result"),
+            post(job_result::<EjBuildResult>),
+        )
+        .route(&v1("builder/run_result"), post(job_result::<EjRunResult>))
         .route_layer(require_permission!("builder"))
         .route_layer(middleware::from_fn(mw_require_auth));
 
@@ -123,6 +127,7 @@ async fn login_builder_api(
     cookies: Cookies,
     Json(payload): Json<EjBuilderApi>,
 ) -> Result<Json<EjBuilderApi>> {
+    info!("Login builder: {}", payload.token);
     Ok(Json(login_builder(payload, &cookies)?))
 }
 
@@ -146,23 +151,14 @@ async fn push_config(
     Json(payload): Json<EjConfig>,
 ) -> Result<Json<EjDispatcherConfig>> {
     let config = EjDispatcherConfig::from_config(payload);
-    Ok(Json(
-        config.save(&ctx.client.client_id, &mut state.connection)?,
-    ))
+    Ok(Json(config.save(&ctx.client.id, &mut state.connection)?))
 }
 
-async fn build_results(
-    State(mut state): State<Dispatcher>,
-    Json(payload): Json<EjBuildResult>,
-) -> Result<Json<EjBuildResult>> {
-    Ok(Json(payload.save(&mut state.connection)?))
-}
-
-async fn run_results(
-    State(mut state): State<Dispatcher>,
-    Json(payload): Json<EjRunResult>,
-) -> Result<Json<EjRunResult>> {
-    Ok(Json(payload.save(&mut state.connection)?))
+async fn job_result<T: EjJobResult>(
+    State(mut dispatcher): State<Dispatcher>,
+    Json(payload): Json<T>,
+) -> Result<()> {
+    dispatcher.on_job_result(payload).await
 }
 
 /// The handler for the HTTP request (this gets called when the HTTP request lands at the start
@@ -176,32 +172,48 @@ async fn builder_handler(
     State(state): State<Dispatcher>,
 ) -> impl IntoResponse {
     println!("Client at {addr} connected.");
-    let (tx, rx) = channel(2);
 
-    state
-        .builders
-        .lock()
-        .await
-        .push(ctx.client.connect(tx.clone(), addr));
-    ws.on_upgrade(move |socket| handle_socket(state, socket, addr, (tx, rx)))
+    info!("ctx: {} {:?}", ctx.client.id, ctx.who);
+    ws.on_upgrade(move |socket| handle_socket(ctx, state, socket, addr))
 }
 
-/// Actual websocket statemachine (one will be spawned per connection)
-async fn handle_socket(
+struct BuilderGuard {
     dispatcher: Dispatcher,
-    mut socket: WebSocket,
-    who: SocketAddr,
-    channel: (Sender<EjServerMessage>, Receiver<EjServerMessage>),
-) {
-    let (tx, mut rx) = channel;
+    index: usize,
+}
+
+impl Drop for BuilderGuard {
+    fn drop(&mut self) {
+        let builders = self.dispatcher.builders.clone();
+        let index = self.index;
+        tokio::spawn(async move {
+            builders.lock().await.remove(index);
+        });
+    }
+}
+/// Actual websocket statemachine (one will be spawned per connection)
+async fn handle_socket(ctx: Ctx, dispatcher: Dispatcher, mut socket: WebSocket, addr: SocketAddr) {
+    let (tx, mut rx) = channel(2);
+
+    let builder_index = {
+        let mut builders = dispatcher.builders.lock().await;
+        builders.push(ctx.client.connect(tx.clone(), addr));
+        builders.len() - 1
+    };
+
+    let _guard = BuilderGuard {
+        dispatcher: dispatcher.clone(),
+        index: builder_index,
+    };
+
     if socket
         .send(Message::Ping(Bytes::from_static(&[1, 2, 3])))
         .await
         .is_ok()
     {
-        tracing::debug!("Pinged {who}...");
+        tracing::debug!("Pinged {addr}...");
     } else {
-        tracing::error!("Failed to send ping message to {who}. Closing connection");
+        tracing::error!("Failed to send ping message to {addr}. Closing connection");
         return;
     }
 
@@ -226,7 +238,7 @@ async fn handle_socket(
             let is_close = matches!(message, EjServerMessage::Close);
 
             if is_close {
-                println!("Sending close to {who}...");
+                println!("Sending close to {addr}...");
                 sender
                     .send(Message::Close(Some(CloseFrame {
                         code: axum::extract::ws::close_code::NORMAL,
@@ -265,7 +277,7 @@ async fn handle_socket(
 
             match message {
                 Message::Text(t) => {
-                    let message: EjClientMessage = serde_json::from_str(&t).map_err(|_| {
+                    let _message: EjClientMessage = serde_json::from_str(&t).map_err(|_| {
                         Error::Generic(String::from("Failed to parse message from client"))
                     })?;
                 }
@@ -273,12 +285,12 @@ async fn handle_socket(
                     if let Some(cf) = c {
                         tracing::info!(
                             ">>> {} sent close with code {} and reason `{}`",
-                            who,
+                            addr,
                             cf.code,
                             cf.reason
                         );
                     } else {
-                        tracing::warn!(">>> {who} somehow sent close message without CloseFrame");
+                        tracing::warn!(">>> {addr} somehow sent close message without CloseFrame");
                     }
                     return Ok(());
                 }
@@ -302,5 +314,5 @@ async fn handle_socket(
             send_task.abort();
         }
     }
-    tracing::info!("Websocket context {who} destroyed");
+    tracing::info!("Websocket context {addr} destroyed");
 }
