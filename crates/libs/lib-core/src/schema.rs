@@ -79,6 +79,8 @@ diesel::table! {
         remote_url -> Varchar,
         job_type -> Int4,
         status -> Int4,
+        dispatched_at -> Nullable<Timestamptz>,
+        finished_at -> Nullable<Timestamptz>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
     }

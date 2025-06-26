@@ -26,9 +26,37 @@ CREATE TABLE ejjob (
 	remote_url VARCHAR NOT NULL,
 	job_type INTEGER REFERENCES ejjobtype(id) NOT NULL,
 	status INTEGER REFERENCES ejjobstatus(id) NOT NULL DEFAULT 0,
+	dispatched_at TIMESTAMPTZ,
+	finished_at TIMESTAMPTZ,
 	created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE OR REPLACE FUNCTION update_ejjob_timestamps()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Always update the updated_at timestamp
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    
+    -- If status is changing to 'Running' (1), set dispatched_at
+    IF NEW.status = 1 AND (OLD.status IS NULL OR OLD.status != 1) THEN
+        NEW.dispatched_at = CURRENT_TIMESTAMP;
+    END IF;
+    
+    -- If status is changing to 'Success' (2) or 'Failed' (3), set finished_at
+    IF NEW.status IN (2, 3) AND (OLD.status IS NULL OR OLD.status NOT IN (2, 3)) THEN
+        NEW.finished_at = CURRENT_TIMESTAMP;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create the trigger
+CREATE TRIGGER ejjob_status_timestamp_trigger
+    BEFORE UPDATE ON ejjob
+    FOR EACH ROW
+    EXECUTE FUNCTION update_ejjob_timestamps();
 
 SELECT diesel_manage_updated_at('ejjob');
 
