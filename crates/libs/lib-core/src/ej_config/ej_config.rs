@@ -123,7 +123,7 @@ mod tests {
             
             [[boards.configs]]
             board = "rpi3"
-            description = "Rpi3 Wayland"
+            name = "Rpi3 Wayland"
             tags = ["wayland", "arm64"]
             build_script = "/home/work/wayland-app/scripts/build_rpi4_wayland.sh"
             run_script = "/home/work/wayland-app/scripts/run_rpi4_wayland.sh"
@@ -132,7 +132,7 @@ mod tests {
             
             [[boards.configs]]
             board = "rpi3"
-            description = "Rpi3 SDL"
+            name = "Rpi3 SDL"
             tags = ["sdl2", "arm64"]
             build_script = "/home/work/wayland-app/scripts/build_rpi4_wayland.sh"
             run_script = "/home/work/wayland-app/scripts/run_rpi4_wayland.sh"
@@ -145,7 +145,7 @@ mod tests {
             
             [[boards.configs]]
             board = "x86_desktop"
-            description = "Wayland build for desktop"
+            name = "Wayland build for desktop"
             tags = ["wayland", "x86_64"]
             build_script = "scripts/build_desktop_wayland.sh"
             run_script = "scripts/run_desktop_wayland.sh"
@@ -154,7 +154,7 @@ mod tests {
             
             [[boards.configs]]
             board = "x86_desktop"
-            description = "X11 build for desktop"
+            name = "X11 build for desktop"
             tags = ["x11", "x86_64"]
             build_script = "scripts/build_desktop_x11.sh"
             run_script = "scripts/run_desktop_x11.sh"
