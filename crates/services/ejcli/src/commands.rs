@@ -6,7 +6,6 @@ use ej::{
     prelude::*,
 };
 use lib_requests::ApiClient;
-use log::info;
 use std::path::PathBuf;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -20,7 +19,7 @@ pub async fn handle_dispatch(
     job: DispatchArgs,
     job_type: EjJobType,
 ) -> Result<()> {
-    info!("Dispatching job");
+    println!("Dispatching job");
     let mut stream = UnixStream::connect(socket_path).await?;
 
     let job = EjJob {
@@ -39,11 +38,11 @@ pub async fn handle_dispatch(
     let mut response = String::new();
     stream.read_to_string(&mut response).await?;
 
-    info!("Response {response}");
+    println!("{:?}", response);
     Ok(())
 }
 pub async fn handle_create_root_user(socket_path: &PathBuf, args: UserArgs) -> Result<()> {
-    info!("Creating user");
+    println!("Creating user");
     let mut stream = UnixStream::connect(socket_path).await?;
 
     let name = args.username;
@@ -59,12 +58,12 @@ pub async fn handle_create_root_user(socket_path: &PathBuf, args: UserArgs) -> R
 
     let mut response = String::new();
     stream.read_to_string(&mut response).await?;
-    info!("Response {response}");
+    println!("{:?}", response);
     Ok(())
 }
 
 pub async fn handle_create_builder(server: &str, args: UserArgs) -> Result<()> {
-    info!("Creating builder");
+    println!("Creating builder");
 
     let client = ApiClient::new(format!("{server}/v1"));
 
