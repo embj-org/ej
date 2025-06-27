@@ -115,6 +115,7 @@ impl fmt::Display for EjJobUpdate {
                 } else {
                     "with failures"
                 };
+                writeln!(f, "\n=======================================")?;
                 writeln!(
                     f,
                     "Job finished {} with {} log entries:",
@@ -122,9 +123,12 @@ impl fmt::Display for EjJobUpdate {
                     logs.len()
                 )?;
                 for (board, log) in logs {
-                    writeln!(f, "  {}", board)?;
+                    writeln!(f, "=======================================")?;
+                    writeln!(f, "{}", board)?;
+                    writeln!(f, "=======================================")?;
                     writeln!(f, "{}", log)?;
                 }
+                writeln!(f, "=======================================")?;
                 Ok(())
             }
             EjJobUpdate::RunFinished { success, results } => {
@@ -133,7 +137,7 @@ impl fmt::Display for EjJobUpdate {
                 } else {
                     "with failures"
                 };
-                writeln!(f, "=======================================")?;
+                writeln!(f, "\n=======================================")?;
                 writeln!(
                     f,
                     "Run finished {} with {} result entries:",
@@ -142,10 +146,11 @@ impl fmt::Display for EjJobUpdate {
                 )?;
                 for (board, result) in results {
                     writeln!(f, "=======================================")?;
-                    writeln!(f, "  {}", board)?;
-                    writeln!(f, "{}", result)?;
+                    writeln!(f, "{}", board)?;
                     writeln!(f, "=======================================")?;
+                    writeln!(f, "{}", result)?;
                 }
+                writeln!(f, "=======================================")?;
                 Ok(())
             }
         }
