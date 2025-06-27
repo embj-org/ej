@@ -1,3 +1,4 @@
+use crate::ej_config::db::ej_board_config_db::EjBoardConfigDb;
 use crate::ej_job::db::EjJobDb;
 use crate::prelude::*;
 use crate::{db::connection::DbConnection, schema::ejjobresult::dsl::*};
@@ -11,7 +12,7 @@ use uuid::Uuid;
 #[diesel(belongs_to(EjJob))]
 #[diesel(belongs_to(EjBoardConfig))]
 #[diesel(check_for_backend(diesel::pg::Pg))]
-pub struct EjJobResult {
+pub struct EjJobResultDb {
     pub ejjob_id: Uuid,
     pub ejboard_config_id: Uuid,
     pub result: String,
@@ -28,41 +29,55 @@ pub struct EjJobResultCreate {
 }
 
 impl EjJobResultCreate {
-    pub fn save(self, connection: &DbConnection) -> Result<EjJobResult> {
+    pub fn save(self, connection: &DbConnection) -> Result<EjJobResultDb> {
         let conn = &mut connection.pool.get()?;
         Ok(diesel::insert_into(ejjobresult)
             .values(&self)
-            .returning(EjJobResult::as_returning())
+            .returning(EjJobResultDb::as_returning())
             .get_result(conn)?
             .into())
     }
 }
 
-impl EjJobResult {
+impl EjJobResultDb {
     pub fn fetch_by_composite_key(
         job_id: &Uuid,
         board_config_id: &Uuid,
         connection: &DbConnection,
     ) -> Result<Self> {
         let conn = &mut connection.pool.get()?;
-        let job_result: EjJobResult = EjJobResult::by_composite_key(job_id, board_config_id)
-            .select(EjJobResult::as_select())
+        let job_result: EjJobResultDb = EjJobResultDb::by_composite_key(job_id, board_config_id)
+            .select(EjJobResultDb::as_select())
             .get_result(conn)?;
         Ok(job_result)
     }
 
     pub fn fetch_by_job_id(target: &Uuid, connection: &DbConnection) -> Result<Vec<Self>> {
         let conn = &mut connection.pool.get()?;
-        Ok(EjJobResult::by_job_id(target)
-            .select(EjJobResult::as_select())
+        Ok(EjJobResultDb::by_job_id(target)
+            .select(EjJobResultDb::as_select())
             .load(conn)?)
     }
 
     pub fn fetch_by_board_config_id(target: &Uuid, connection: &DbConnection) -> Result<Vec<Self>> {
         let conn = &mut connection.pool.get()?;
-        Ok(EjJobResult::by_board_config_id(target)
-            .select(EjJobResult::as_select())
+        Ok(EjJobResultDb::by_board_config_id(target)
+            .select(EjJobResultDb::as_select())
             .load(conn)?)
+    }
+
+    pub fn fetch_with_board_config_by_job_id(
+        target: &Uuid,
+        connection: &DbConnection,
+    ) -> Result<Vec<(EjJobResultDb, EjBoardConfigDb)>> {
+        let conn = &mut connection.pool.get()?;
+
+        let results = EjJobResultDb::by_job_id(target)
+            .inner_join(crate::schema::ejboard_config::table)
+            .select((EjJobResultDb::as_select(), EjBoardConfigDb::as_select()))
+            .load::<(EjJobResultDb, EjBoardConfigDb)>(conn)?;
+
+        Ok(results)
     }
 
     pub fn fetch_job(&self, connection: &DbConnection) -> Result<EjJobDb> {
@@ -71,19 +86,19 @@ impl EjJobResult {
 
     pub fn update_result(&self, new_result: String, connection: &DbConnection) -> Result<Self> {
         let conn = &mut connection.pool.get()?;
-        Ok(diesel::update(EjJobResult::by_composite_key(
+        Ok(diesel::update(EjJobResultDb::by_composite_key(
             &self.ejjob_id,
             &self.ejboard_config_id,
         ))
         .set(result.eq(new_result))
-        .returning(EjJobResult::as_returning())
+        .returning(EjJobResultDb::as_returning())
         .get_result(conn)?
         .into())
     }
 
     pub fn delete(&self, connection: &DbConnection) -> Result<()> {
         let conn = &mut connection.pool.get()?;
-        diesel::delete(EjJobResult::by_composite_key(
+        diesel::delete(EjJobResultDb::by_composite_key(
             &self.ejjob_id,
             &self.ejboard_config_id,
         ))
@@ -92,7 +107,7 @@ impl EjJobResult {
     }
 }
 
-impl EjJobResult {
+impl EjJobResultDb {
     #[diesel::dsl::auto_type(no_type_alias)]
     pub fn by_composite_key<'a>(job_id: &'a Uuid, board_config_id: &'a Uuid) -> _ {
         crate::schema::ejjobresult::dsl::ejjobresult

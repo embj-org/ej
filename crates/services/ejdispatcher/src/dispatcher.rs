@@ -6,6 +6,7 @@ use ej::ej_job::api::{EjDeployableJob, EjJob, EjJobCancelReason, EjJobType, EjJo
 use ej::ej_job::db::EjJobDb;
 use ej::ej_job::logs::db::EjJobLog;
 use ej::ej_job::results::api::EjJobResult;
+use ej::ej_job::results::db::EjJobResultDb;
 use ej::ej_job::status::db::EjJobStatus;
 use ej::ej_message::EjServerMessage;
 use ej::prelude::*;
@@ -198,6 +199,7 @@ impl DispatcherPrivate {
     }
 
     async fn on_job_completed(job: &RunningJob, connection: &DbConnection) -> Result<()> {
+        info!("Job {} of type {} complete", job.data.id, job.data.job_type);
         let jobdb = EjJobDb::fetch_by_id(&job.data.id, &connection)?;
         let logsdb = EjJobLog::fetch_with_board_config_by_job_id(&jobdb.id, &connection)?;
         let mut logs = Vec::new();
@@ -214,6 +216,24 @@ impl DispatcherPrivate {
             },
         )
         .await;
+        if matches!(job.data.job_type, EjJobType::BuildAndRun) {
+            let resultsdb =
+                EjJobResultDb::fetch_with_board_config_by_job_id(&jobdb.id, &connection)?;
+            let mut results = Vec::new();
+            for (resultdb, board_config_db) in resultsdb {
+                let config_api =
+                    EjBoardConfigApi::try_from_board_config_db(board_config_db, connection)?;
+                results.push((config_api, resultdb.result));
+            }
+            DispatcherPrivate::send_job_update(
+                &job.tx,
+                EjJobUpdate::RunFinished {
+                    success: jobdb.success(),
+                    results,
+                },
+            )
+            .await;
+        }
         Ok(())
     }
     async fn handle_job_completed(
