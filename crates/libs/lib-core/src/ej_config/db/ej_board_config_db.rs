@@ -1,5 +1,3 @@
-use crate::ej_config::db::ej_board_config_tag_db::EjBoardConfigTag;
-use crate::ej_config::db::ej_tag::EjTag;
 use crate::prelude::*;
 use crate::schema::ejboard_config::dsl::*;
 use crate::{db::connection::DbConnection, ej_config::db::ej_board_db::EjBoardDb};

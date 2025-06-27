@@ -1,7 +1,6 @@
 use crate::ej_client_permission::ClientPermission;
 use crate::permission::Permission;
 use crate::prelude::*;
-use crate::schema::ejclient;
 use crate::{db::connection::DbConnection, schema::ejclient::dsl::*};
 use chrono::{DateTime, Utc};
 use diesel::associations::HasTable;

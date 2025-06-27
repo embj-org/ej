@@ -1,7 +1,6 @@
 use ej::ej_client::db::EjClient;
 use ej::ej_client_permission::{ClientPermission, NewClientPermission};
 
-use ej::ej_job::api::EjJobUpdate;
 use ej::ej_message::{EjSocketClientMessage, EjSocketServerMessage};
 use ej::permission::Permission;
 use ej::prelude::*;

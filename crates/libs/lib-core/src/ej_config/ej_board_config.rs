@@ -1,4 +1,4 @@
-use std::fmt::{self, write};
+use std::fmt::{self};
 
 use crate::{
     db::connection::DbConnection, ej_config::db::ej_board_config_tag_db::EjBoardConfigTag,
