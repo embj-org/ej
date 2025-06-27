@@ -59,11 +59,7 @@ async fn handle_message(
                 Ok(job) => {
                     send_message(writer, EjSocketServerMessage::DispatchOk(job)).await?;
                     while let Some(msg) = rx.recv().await {
-                        let end = matches!(msg, EjJobUpdate::JobFinished { .. });
                         send_message(writer, EjSocketServerMessage::JobUpdate(msg)).await?;
-                        if end {
-                            return Ok(());
-                        }
                     }
                     Ok(())
                 }
