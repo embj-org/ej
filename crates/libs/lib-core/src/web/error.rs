@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use axum::{http::StatusCode, response::IntoResponse, Json};
+use axum::{Json, http::StatusCode, response::IntoResponse};
 use serde_json::json;
 
 impl IntoResponse for Error {

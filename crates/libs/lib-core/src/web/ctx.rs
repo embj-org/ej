@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::{
-    crypto::auth::{authenticate, decode_token, AuthError, AuthToken, CtxWho},
+    crypto::auth::{AuthError, AuthToken, CtxWho, authenticate, decode_token},
     ctx::ctx_client::CtxClient,
     db::connection::DbConnection,
     ej_builder::api::EjBuilderApi,
@@ -11,7 +11,7 @@ use crate::{
 use axum::{
     body::Body,
     extract::{FromRequestParts, Request},
-    http::{request::Parts, HeaderMap},
+    http::{HeaderMap, request::Parts},
     middleware::Next,
     response::Response,
 };
