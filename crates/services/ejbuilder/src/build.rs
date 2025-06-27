@@ -42,10 +42,13 @@ pub fn build(config: &EjConfig, output: &mut EjRunOutput) -> Result<()> {
                     }
                     RunEvent::ProcessNewOutputLine(line) => {
                         let key = board_config.id;
-                        if let Some(logs) = output.logs.get_mut(&key) {
-                            logs.push(line);
-                        } else {
-                            output.logs.insert(key, vec![line]);
+                        match output.logs.get_mut(&key) {
+                            Some(entry) => {
+                                entry.push(line);
+                            }
+                            None => {
+                                output.logs.insert(key, vec![line]);
+                            }
                         }
                     }
                 }

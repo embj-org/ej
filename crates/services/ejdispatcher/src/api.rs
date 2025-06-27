@@ -138,7 +138,11 @@ async fn dispatch_job(
     let builders = state.builders.lock().await;
     let job = payload.create(&mut state.connection)?;
     for builder in builders.iter() {
-        if let Err(err) = builder.tx.send(EjServerMessage::Run(job.clone())).await {
+        if let Err(err) = builder
+            .tx
+            .send(EjServerMessage::BuildAndRun(job.clone()))
+            .await
+        {
             tracing::error!("Failed to dispatch job {err}");
         }
     }

@@ -24,13 +24,12 @@ pub fn run(config: &EjConfig, output: &mut EjRunOutput) -> Result<()> {
         let board = &config.boards[i];
         match handler.join() {
             Ok(board_results) => {
-                for (key, (logs, result)) in board_results {
+                for (key, (mut logs, result)) in board_results {
                     let config = board
                         .configs
                         .iter()
                         .find(|c| c.id == key)
                         .expect("Failed to find config in map");
-                    output.logs.insert(key, logs);
 
                     match result {
                         Some(result) => {
@@ -43,6 +42,14 @@ pub fn run(config: &EjConfig, output: &mut EjRunOutput) -> Result<()> {
                                 "Results for {} - {} are not available",
                                 board.name, config.name
                             );
+                        }
+                    }
+                    match output.logs.get_mut(&key) {
+                        Some(entry) => {
+                            entry.append(&mut logs);
+                        }
+                        None => {
+                            output.logs.insert(key, logs);
                         }
                     }
                 }

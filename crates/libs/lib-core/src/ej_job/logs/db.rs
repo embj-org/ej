@@ -1,3 +1,4 @@
+use crate::ej_config::db::ej_board_config_db::EjBoardConfigDb;
 use crate::ej_job::db::EjJobDb;
 use crate::prelude::*;
 use crate::{db::connection::DbConnection, schema::ejjoblog::dsl::*};
@@ -10,7 +11,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Queryable, Selectable, Identifiable, PartialEq, Serialize, Deserialize)]
 #[diesel(table_name = crate::schema::ejjoblog)]
 #[diesel(belongs_to(EjJob))]
-#[diesel(belongs_to(EjBoardConfig))]
+#[diesel(belongs_to(EjBoardConfigDb))]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct EjJobLog {
     pub id: Uuid,
@@ -54,6 +55,20 @@ impl EjJobLog {
         Ok(EjJobLog::by_job_id(target)
             .select(EjJobLog::as_select())
             .load(conn)?)
+    }
+
+    pub fn fetch_with_board_config_by_job_id(
+        target: &Uuid,
+        connection: &DbConnection,
+    ) -> Result<Vec<(EjJobLog, EjBoardConfigDb)>> {
+        let conn = &mut connection.pool.get()?;
+
+        let results = EjJobLog::by_job_id(target)
+            .inner_join(crate::schema::ejboard_config::table)
+            .select((EjJobLog::as_select(), EjBoardConfigDb::as_select()))
+            .load::<(EjJobLog, EjBoardConfigDb)>(conn)?;
+
+        Ok(results)
     }
 
     pub fn fetch_by_board_config_id(target: &Uuid, connection: &DbConnection) -> Result<Vec<Self>> {

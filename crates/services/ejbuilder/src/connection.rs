@@ -135,11 +135,14 @@ pub async fn handle_connect(
                             }
                         };
                     }
-                    EjServerMessage::Run(job) => {
+                    EjServerMessage::BuildAndRun(job) => {
                         let mut output = EjRunOutput::new(&config);
-                        let result = run(&config, &mut output);
+                        let mut result = build(&config, &mut output);
                         if let Err(err) = dump_logs_to_temporary_file(&output) {
                             error!("Failed to dump logs to file - {err}");
+                        }
+                        if result.is_ok() {
+                            result = run(&config, &mut output);
                         }
                         let response = EjRunResult {
                             job_id: job.id,

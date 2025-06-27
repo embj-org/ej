@@ -32,6 +32,9 @@ impl EjJobStatus {
     pub fn failed() -> i32 {
         3
     }
+    pub fn cancelled() -> i32 {
+        4
+    }
 }
 impl EjJobStatusCreate {
     pub fn save(self, connection: &DbConnection) -> Result<EjJobStatus> {

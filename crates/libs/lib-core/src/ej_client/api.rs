@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, fmt};
 
 use crate::{
     crypto::{
@@ -92,5 +92,10 @@ impl EjClientLoginRequest {
         let name = name.into();
         let secret = secret.into();
         Self { name, secret }
+    }
+}
+impl fmt::Display for EjClientApi {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Client '{}' (ID: {})", self.name, self.id)
     }
 }

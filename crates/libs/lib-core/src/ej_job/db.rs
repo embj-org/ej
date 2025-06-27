@@ -80,6 +80,9 @@ impl EjJobDb {
             .get_result(conn)?
             .into())
     }
+    pub fn success(&self) -> bool {
+        self.status == EjJobStatus::success()
+    }
 }
 
 impl EjJobDb {

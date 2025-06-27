@@ -97,7 +97,7 @@ impl EjJobResult for EjRunResult {
         let job = EjJobDb::fetch_by_id(&self.job_id, connection)?;
 
         let job_type: EjJobType = job.fetch_type(connection)?.into();
-        if job_type != EjJobType::Run {
+        if job_type != EjJobType::BuildAndRun {
             return Err(Error::InvalidJobType);
         }
 

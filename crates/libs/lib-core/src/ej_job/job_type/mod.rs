@@ -6,7 +6,7 @@ impl From<i32> for EjJobType {
     fn from(value: i32) -> Self {
         match value {
             0 => EjJobType::Build,
-            1 => EjJobType::Run,
+            1 => EjJobType::BuildAndRun,
             _ => unreachable!(),
         }
     }

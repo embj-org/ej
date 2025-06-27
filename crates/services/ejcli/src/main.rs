@@ -20,7 +20,7 @@ async fn main() -> Result<()> {
         }
 
         Commands::DispatchRun { socket, job } => {
-            handle_dispatch(&socket, job, EjJobType::Run).await
+            handle_dispatch(&socket, job, EjJobType::BuildAndRun).await
         }
         Commands::CreateRootUser { socket, client } => {
             handle_create_root_user(&socket, client).await

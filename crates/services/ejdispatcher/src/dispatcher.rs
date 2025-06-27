@@ -1,8 +1,10 @@
 use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
 
+use ej::ej_config::ej_board_config::EjBoardConfigApi;
 use ej::ej_job::api::{EjDeployableJob, EjJob, EjJobCancelReason, EjJobType, EjJobUpdate};
 use ej::ej_job::db::EjJobDb;
+use ej::ej_job::logs::db::EjJobLog;
 use ej::ej_job::results::api::EjJobResult;
 use ej::ej_job::status::db::EjJobStatus;
 use ej::ej_message::EjServerMessage;
@@ -43,6 +45,26 @@ struct DispatchedJob {
     tx: Sender<EjJobUpdate>,
 }
 
+#[derive(Debug)]
+struct RunningJob {
+    data: EjDeployableJob,
+    tx: Sender<EjJobUpdate>,
+    deployed_builders: HashSet<Uuid>,
+}
+
+impl DispatchedJob {
+    pub fn new(data: EjDeployableJob, tx: Sender<EjJobUpdate>) -> Self {
+        Self { data, tx }
+    }
+    pub fn start(self, deployed_builders: HashSet<Uuid>) -> RunningJob {
+        RunningJob {
+            data: self.data,
+            tx: self.tx,
+            deployed_builders,
+        }
+    }
+}
+
 struct DispatcherPrivate {
     dispatcher: Dispatcher,
     state: DispatcherState,
@@ -52,10 +74,7 @@ struct DispatcherPrivate {
 #[derive(Debug)]
 enum DispatcherState {
     Idle,
-    DispatchedJob {
-        job: DispatchedJob,
-        deployed_builders: HashSet<Uuid>,
-    },
+    DispatchedJob { job: RunningJob },
 }
 
 impl DispatcherPrivate {
@@ -81,11 +100,8 @@ impl DispatcherPrivate {
                 );
                 let result = match message {
                     DispatcherEvent::DispatchJob { job, job_update_tx } => {
-                        self.handle_dispatch_job(DispatchedJob {
-                            data: job,
-                            tx: job_update_tx,
-                        })
-                        .await
+                        self.handle_dispatch_job(DispatchedJob::new(job, job_update_tx))
+                            .await
                     }
                     DispatcherEvent::JobCompleted { job_id, builder_id } => {
                         self.handle_job_completed(job_id, builder_id).await
@@ -101,8 +117,8 @@ impl DispatcherPrivate {
         job: EjDeployableJob,
         builder: &EjConnectedBuilder,
     ) -> bool {
-        let message = if job.job_type == EjJobType::Run {
-            EjServerMessage::Run(job)
+        let message = if job.job_type == EjJobType::BuildAndRun {
+            EjServerMessage::BuildAndRun(job)
         } else {
             EjServerMessage::Build(job)
         };
@@ -151,8 +167,7 @@ impl DispatcherPrivate {
             )
             .await;
             self.state = DispatcherState::DispatchedJob {
-                job: job,
-                deployed_builders: dispatched_builders,
+                job: job.start(dispatched_builders),
             };
         }
     }
@@ -176,12 +191,31 @@ impl DispatcherPrivate {
         }
         Ok(())
     }
-    async fn send_job_update(tx: &mut Sender<EjJobUpdate>, update: EjJobUpdate) {
+    async fn send_job_update(tx: &Sender<EjJobUpdate>, update: EjJobUpdate) {
         if let Err(err) = tx.send(update).await {
             error!("Failed to send job update through internal channel {err}");
         }
     }
 
+    async fn on_job_completed(job: &RunningJob, connection: &DbConnection) -> Result<()> {
+        let jobdb = EjJobDb::fetch_by_id(&job.data.id, &connection)?;
+        let logsdb = EjJobLog::fetch_with_board_config_by_job_id(&jobdb.id, &connection)?;
+        let mut logs = Vec::new();
+        for (logdb, board_config_db) in logsdb {
+            let config_api =
+                EjBoardConfigApi::try_from_board_config_db(board_config_db, connection)?;
+            logs.push((config_api, logdb.log));
+        }
+        DispatcherPrivate::send_job_update(
+            &job.tx,
+            EjJobUpdate::JobFinished {
+                success: jobdb.success(),
+                logs: logs,
+            },
+        )
+        .await;
+        Ok(())
+    }
     async fn handle_job_completed(
         &mut self,
         completed_job_id: Uuid,
@@ -195,29 +229,30 @@ impl DispatcherPrivate {
                     builder_id, completed_job_id
                 );
             }
-            DispatcherState::DispatchedJob {
-                ref mut job,
-                ref mut deployed_builders,
-            } => {
+            DispatcherState::DispatchedJob { ref mut job } => {
                 info!(
                     "Builder {} finished job {}. Currently deployed builders: {:?}",
-                    builder_id, job.data.id, deployed_builders
+                    builder_id, job.data.id, job.deployed_builders
                 );
                 if job.data.id == completed_job_id {
-                    if !deployed_builders.remove(&builder_id) {
+                    if !job.deployed_builders.remove(&builder_id) {
                         warn!(
                             "Received unexpected JobCompleted message from builder {}",
                             builder_id
                         );
                     }
-                    if deployed_builders.is_empty() {
+                    if job.deployed_builders.is_empty() {
                         info!(
                             "Job completed by all builders. # of pending jobs {}",
                             self.pending_jobs.len()
                         );
 
-                        DispatcherPrivate::send_job_update(&mut job.tx, EjJobUpdate::JobFinished)
-                            .await;
+                        if let Err(err) =
+                            DispatcherPrivate::on_job_completed(&job, &self.dispatcher.connection)
+                                .await
+                        {
+                            error!("Failed to send job update {err}");
+                        }
                         match self.pending_jobs.pop_front() {
                             Some(new_job) => {
                                 self.dispatch_job(new_job).await;
@@ -249,7 +284,7 @@ impl DispatcherPrivate {
                             )
                             .await
                             {
-                                deployed_builders.insert(builder.builder.id);
+                                job.deployed_builders.insert(builder.builder.id);
                             }
                         }
                         None => error!(

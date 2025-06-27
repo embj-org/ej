@@ -39,7 +39,7 @@ pub async fn handle_dispatch(
     while let Some(line) = lines.next_line().await? {
         match serde_json::from_str::<EjSocketServerMessage>(&line) {
             Ok(message) => {
-                println!("Received: {:?}", message);
+                println!("{}", message);
             }
             Err(e) => {
                 eprintln!("Failed to parse message: {}", e);
