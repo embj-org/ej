@@ -8,7 +8,7 @@ use ej::{
 use lib_requests::ApiClient;
 use std::path::PathBuf;
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
     net::UnixStream,
 };
 
@@ -28,17 +28,16 @@ pub async fn handle_dispatch(
         remote_url: job.remote_url,
         remote_token: job.remote_token,
     };
-
     let message = EjSocketClientMessage::Dispatch(job);
     let payload = serde_json::to_string(&message)?;
     stream.write_all(payload.as_bytes()).await;
     stream.write_all(b"\n").await;
     stream.flush().await;
 
+    let mut reader = BufReader::new(stream);
     let mut response = String::new();
-    stream.read_to_string(&mut response).await?;
+    reader.read_line(&mut response).await?;
     let response: EjSocketServerMessage = serde_json::from_str(&response)?;
-
     println!("{:?}", response);
     Ok(())
 }
