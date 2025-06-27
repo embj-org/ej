@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{db::connection::DbConnection, ej_config::ej_config::EjDispatcherConfig};
+use crate::{db::connection::DbConnection, ej_config::ej_config::EjConfig};
 
 pub trait EjJobResult {
     fn save(self, connection: &mut DbConnection) -> Result<()>;
@@ -20,7 +20,7 @@ pub trait EjJobResult {
 
 #[derive(Debug)]
 pub struct EjRunOutput<'a> {
-    pub config: &'a EjDispatcherConfig,
+    pub config: &'a EjConfig,
     pub logs: HashMap<Uuid, Vec<String>>,
     pub results: HashMap<Uuid, String>,
 }
@@ -45,7 +45,7 @@ pub struct EjRunResult {
 }
 
 impl<'a> EjRunOutput<'a> {
-    pub fn new(config: &'a EjDispatcherConfig) -> Self {
+    pub fn new(config: &'a EjConfig) -> Self {
         Self {
             config,
             logs: HashMap::new(),

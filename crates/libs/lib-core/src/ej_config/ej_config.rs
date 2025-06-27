@@ -6,7 +6,7 @@ use crate::{
             ej_board_config_tag_db::NewEjBoardConfigTag,
             ej_tag::{EjTag, NewEjTag},
         },
-        ej_board::EjDispatcherBoard,
+        ej_board::EjBoard,
     },
     prelude::*,
 };
@@ -22,7 +22,7 @@ use super::{
         ej_board_db::NewEjBoardDb,
         ej_config_db::{EjConfigDb, NewEjConfigDb},
     },
-    ej_board::EjBoard,
+    ej_board::EjUserBoard,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -31,25 +31,25 @@ pub struct EjGlobalConfig {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EjUserConfig {
+    pub global: EjGlobalConfig,
+    pub boards: Vec<EjUserBoard>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EjConfig {
     pub global: EjGlobalConfig,
     pub boards: Vec<EjBoard>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct EjDispatcherConfig {
-    pub global: EjGlobalConfig,
-    pub boards: Vec<EjDispatcherBoard>,
-}
-
-impl EjDispatcherConfig {
-    pub fn from_config(config: EjConfig) -> Self {
+impl EjConfig {
+    pub fn from_config(config: EjUserConfig) -> Self {
         Self {
             global: config.global,
             boards: config
                 .boards
                 .into_iter()
-                .map(|board| EjDispatcherBoard::from_ej_board(board))
+                .map(|board| EjBoard::from_ej_board(board))
                 .collect(),
         }
     }
@@ -90,7 +90,7 @@ impl EjDispatcherConfig {
     }
 }
 
-impl EjConfig {
+impl EjUserConfig {
     pub fn from_file(file_path: &Path) -> Result<Self> {
         let contents = std::fs::read_to_string(file_path)?;
         Ok(Self::from_toml(&contents)?)
@@ -161,7 +161,7 @@ mod tests {
             results_path = "/var/log/tests/desktop_x11_results.json"
             library_path = "https://github.com/yourusername/lib-desktop-x11.git"
         "#;
-        toml::from_str::<EjConfig>(content)?;
+        toml::from_str::<EjUserConfig>(content)?;
         Ok(())
     }
 }

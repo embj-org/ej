@@ -1,18 +1,18 @@
 use axum::{
+    Json, Router,
     body::Bytes,
     extract::{
-        ws::{Message, Utf8Bytes, WebSocket, WebSocketUpgrade},
         State,
+        ws::{Message, Utf8Bytes, WebSocket, WebSocketUpgrade},
     },
     middleware,
     response::IntoResponse,
     routing::{any, post},
-    Json, Router,
 };
 use ej::{
     ej_builder::api::EjBuilderApi,
     ej_client::api::{EjClientApi, EjClientLogin, EjClientLoginRequest, EjClientPost},
-    ej_config::ej_config::{EjConfig, EjDispatcherConfig},
+    ej_config::ej_config::{EjConfig, EjUserConfig},
     ej_job::{
         api::{EjDeployableJob, EjJob},
         results::api::{EjBuildResult, EjJobResult, EjRunResult},
@@ -20,7 +20,7 @@ use ej::{
     ej_message::{EjClientMessage, EjServerMessage},
     require_permission,
     web::{
-        ctx::{login_builder, login_client, mw_ctx_resolver, Ctx},
+        ctx::{Ctx, login_builder, login_client, mw_ctx_resolver},
         mw_auth::mw_require_auth,
     },
 };
@@ -148,9 +148,9 @@ async fn dispatch_job(
 async fn push_config(
     State(mut state): State<Dispatcher>,
     ctx: Ctx,
-    Json(payload): Json<EjConfig>,
-) -> Result<Json<EjDispatcherConfig>> {
-    let config = EjDispatcherConfig::from_config(payload);
+    Json(payload): Json<EjUserConfig>,
+) -> Result<Json<EjConfig>> {
+    let config = EjConfig::from_config(payload);
     Ok(Json(config.save(&ctx.client.id, &mut state.connection)?))
 }
 

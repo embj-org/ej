@@ -1,4 +1,4 @@
-use ej::ej_config::ej_config::{EjConfig, EjDispatcherConfig};
+use ej::ej_config::ej_config::{EjConfig, EjUserConfig};
 use ej::ej_job::results::api::EjRunOutput;
 use std::io::{stderr, stdout};
 use std::path::PathBuf;
@@ -11,7 +11,7 @@ use ej::prelude::*;
 pub fn handle_parse(config_path: &PathBuf) -> Result<()> {
     println!("Parsing configuration file: {:?}", config_path);
 
-    let config = EjConfig::from_file(config_path)?;
+    let config = EjUserConfig::from_file(config_path)?;
 
     println!("Configuration parsed successfully");
     println!("Global version: {}", config.global.version);
@@ -38,8 +38,8 @@ pub fn handle_parse(config_path: &PathBuf) -> Result<()> {
 pub fn handle_run_and_build(config_path: &PathBuf) -> Result<()> {
     println!("Validating configuration file: {:?}", config_path);
 
-    let config = EjConfig::from_file(config_path)?;
-    let config = EjDispatcherConfig::from_config(config);
+    let config = EjUserConfig::from_file(config_path)?;
+    let config = EjConfig::from_config(config);
     let mut output = EjRunOutput::new(&config);
     let result = build(&config, &mut output);
     if result.is_ok() {

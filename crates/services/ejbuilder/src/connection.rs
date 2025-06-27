@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use ej::ej_config::ej_config::{EjConfig, EjDispatcherConfig};
+use ej::ej_config::ej_config::{EjConfig, EjUserConfig};
 use ej::ej_job::results::api::{EjBuildResult, EjRunOutput, EjRunResult};
 use ej::ej_message::EjServerMessage;
 use ej::prelude::*;
@@ -10,8 +10,8 @@ use ej::{ej_builder::api::EjBuilderApi, web::ctx::AUTH_HEADER};
 use futures_util::{SinkExt, StreamExt};
 use lib_requests::ApiClient;
 use tokio_tungstenite::connect_async;
-use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tracing::{debug, error, info, trace, warn};
 use uuid::Uuid;
 
@@ -28,7 +28,7 @@ pub async fn handle_connect(
     info!("Starting builder with config: {:?}", config_path);
 
     info!("Connecting to server: {}", server_url);
-    let config = EjConfig::from_file(config_path)?;
+    let config = EjUserConfig::from_file(config_path)?;
 
     let id = Uuid::from_str(&id.or_else(|| std::env::var("EJB_ID").ok()).ok_or_else(|| {
         Error::Generic(String::from(
@@ -59,7 +59,7 @@ pub async fn handle_connect(
 
     info!("Successfully logged in as builder {}", builder.id);
     let body = serde_json::to_string(&config)?;
-    let config: EjDispatcherConfig = client
+    let config: EjConfig = client
         .post_and_deserialize("v1/builder/config", body)
         .await
         .expect("Failed to push config");

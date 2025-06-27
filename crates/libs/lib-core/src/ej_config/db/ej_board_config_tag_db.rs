@@ -3,12 +3,12 @@ use uuid::Uuid;
 
 use crate::{
     db::connection::DbConnection,
-    ej_config::{db::ej_tag::EjTag, ej_board_config::EjBoardConfig},
+    ej_config::db::{ej_board_config_db::EjBoardConfigDb, ej_tag::EjTag},
     prelude::*,
 };
 
 #[derive(Queryable, Selectable, Associations, Debug, Clone)]
-#[diesel(belongs_to(EjBoardConfig, foreign_key = ejboard_config_id))]
+#[diesel(belongs_to(EjBoardConfigDb, foreign_key = ejboard_config_id))]
 #[diesel(belongs_to(EjTag, foreign_key = ejtag_id))]
 #[diesel(table_name = crate::schema::ejboard_config_tag)]
 #[diesel(primary_key(ejboard_config_id, ejtag_id))]

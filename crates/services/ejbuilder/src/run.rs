@@ -1,16 +1,16 @@
-use ej::ej_config::ej_config::EjDispatcherConfig;
+use ej::ej_config::ej_config::EjConfig;
 use ej::prelude::*;
-use ej::{ej_config::ej_board::EjDispatcherBoard, ej_job::results::api::EjRunOutput};
+use ej::{ej_config::ej_board::EjBoard, ej_job::results::api::EjRunOutput};
 use lib_io::runner::{RunEvent, Runner};
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::channel;
-use std::sync::Arc;
 use std::thread;
 use tracing::{error, info};
 use uuid::Uuid;
 
-pub fn run(config: &EjDispatcherConfig, output: &mut EjRunOutput) -> Result<()> {
+pub fn run(config: &EjConfig, output: &mut EjRunOutput) -> Result<()> {
     let stop = Arc::new(AtomicBool::new(false));
 
     let mut join_handlers = Vec::new();
@@ -60,7 +60,7 @@ pub fn run(config: &EjDispatcherConfig, output: &mut EjRunOutput) -> Result<()> 
 }
 
 fn run_all_configs(
-    board: &EjDispatcherBoard,
+    board: &EjBoard,
     stop: Arc<AtomicBool>,
 ) -> HashMap<Uuid, (Vec<String>, Option<String>)> {
     let mut outputs = HashMap::new();

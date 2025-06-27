@@ -1,30 +1,28 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::ej_config::ej_board_config::EjDispatcherBoardConfig;
+use crate::ej_config::ej_board_config::{EjBoardConfig, EjUserBoardConfig};
 
-use super::ej_board_config::EjBoardConfig;
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EjUserBoard {
+    pub name: String,
+    pub description: String,
+    pub configs: Vec<EjUserBoardConfig>,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EjBoard {
+    pub id: Uuid,
     pub name: String,
     pub description: String,
     pub configs: Vec<EjBoardConfig>,
 }
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct EjDispatcherBoard {
-    pub id: Uuid,
-    pub name: String,
-    pub description: String,
-    pub configs: Vec<EjDispatcherBoardConfig>,
-}
-impl EjDispatcherBoard {
-    pub fn from_ej_board(board: EjBoard) -> Self {
-        let configs: Vec<EjDispatcherBoardConfig> = board
+impl EjBoard {
+    pub fn from_ej_board(board: EjUserBoard) -> Self {
+        let configs: Vec<EjBoardConfig> = board
             .configs
             .into_iter()
-            .map(|conf: EjBoardConfig| EjDispatcherBoardConfig::from_ej_board_config(conf))
+            .map(|conf: EjUserBoardConfig| EjBoardConfig::from_ej_board_config(conf))
             .collect();
 
         Self {
