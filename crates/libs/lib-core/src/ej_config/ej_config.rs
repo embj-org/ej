@@ -82,7 +82,7 @@ impl EjConfig {
                             }
                         }
                     };
-                    NewEjBoardConfigTag::new(board_config.id, tag_db.id);
+                    NewEjBoardConfigTag::new(board_config.id, tag_db.id).save(conn)?;
                 }
             }
         }
