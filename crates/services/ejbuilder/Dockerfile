@@ -11,11 +11,9 @@ COPY --from=planner /app/recipe.json recipe.json
 RUN cargo chef cook --release --recipe-path recipe.json
 # Build application
 COPY . .
-RUN cargo build --release 
+RUN cargo build --bin ejb --release
 
 FROM debian:bookworm-slim AS runtime
 WORKDIR /app
-COPY --from=builder /app/target/release/server /usr/local/bin
-RUN apt update
-RUN apt install libpq5 -y
-ENTRYPOINT ["/usr/local/bin/server"]
+COPY --from=builder /app/target/release/ejb /usr/local/bin
+ENTRYPOINT ["/usr/local/bin/ejd"]
