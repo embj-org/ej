@@ -91,8 +91,7 @@ async fn handle_client(mut dispatcher: Dispatcher, stream: UnixStream) -> Result
                 if let Ok(message) = serde_json::from_str::<EjSocketClientMessage>(&line) {
                     info!("Socket Message {:?}", message);
                     match handle_message(&mut writer, message, &mut dispatcher).await {
-                        Ok(close) => {
-                            close;
+                        Ok(_) => {
                             return Ok(());
                         }
                         Err(err) => {
