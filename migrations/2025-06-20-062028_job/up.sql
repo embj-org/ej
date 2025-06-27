@@ -18,7 +18,8 @@ INSERT INTO ejjobstatus (id, status) VALUES
 	(0, 'Not started'),
 	(1, 'Running'),
 	(2, 'Success'),
-	(3, 'Failed');
+	(3, 'Failed'),
+	(4, 'Cancelled');
 
 CREATE TABLE ejjob (
 	id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

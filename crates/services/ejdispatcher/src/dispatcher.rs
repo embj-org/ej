@@ -1,7 +1,7 @@
 use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
 
-use ej::ej_job::api::{EjDeployableJob, EjJob, EjJobType};
+use ej::ej_job::api::{EjDeployableJob, EjJob, EjJobCancelReason, EjJobType, EjJobUpdate};
 use ej::ej_job::db::EjJobDb;
 use ej::ej_job::results::api::EjJobResult;
 use ej::ej_job::status::db::EjJobStatus;
@@ -10,8 +10,8 @@ use ej::prelude::*;
 use ej::{db::connection::DbConnection, ej_connected_builder::EjConnectedBuilder};
 use tokio::{
     sync::{
-        mpsc::{channel, Receiver, Sender},
         Mutex,
+        mpsc::{Receiver, Sender, channel},
     },
     task::JoinHandle,
 };
@@ -20,8 +20,14 @@ use uuid::Uuid;
 
 #[derive(Debug)]
 pub enum DispatcherEvent {
-    DispatchJob(EjDeployableJob),
-    JobCompleted { job_id: Uuid, builder_id: Uuid },
+    DispatchJob {
+        job: EjDeployableJob,
+        job_update_tx: Sender<EjJobUpdate>,
+    },
+    JobCompleted {
+        job_id: Uuid,
+        builder_id: Uuid,
+    },
 }
 
 #[derive(Clone)]
@@ -31,17 +37,23 @@ pub struct Dispatcher {
     pub tx: Sender<DispatcherEvent>,
 }
 
+#[derive(Debug)]
+struct DispatchedJob {
+    data: EjDeployableJob,
+    tx: Sender<EjJobUpdate>,
+}
+
 struct DispatcherPrivate {
     dispatcher: Dispatcher,
     state: DispatcherState,
-    pending_jobs: VecDeque<EjDeployableJob>,
+    pending_jobs: VecDeque<DispatchedJob>,
 }
 
 #[derive(Debug)]
 enum DispatcherState {
     Idle,
     DispatchedJob {
-        job: EjDeployableJob,
+        job: DispatchedJob,
         deployed_builders: HashSet<Uuid>,
     },
 }
@@ -68,7 +80,13 @@ impl DispatcherPrivate {
                     message, self.state
                 );
                 let result = match message {
-                    DispatcherEvent::DispatchJob(ej_job) => self.handle_dispatch_job(ej_job).await,
+                    DispatcherEvent::DispatchJob { job, job_update_tx } => {
+                        self.handle_dispatch_job(DispatchedJob {
+                            data: job,
+                            tx: job_update_tx,
+                        })
+                        .await
+                    }
                     DispatcherEvent::JobCompleted { job_id, builder_id } => {
                         self.handle_job_completed(job_id, builder_id).await
                     }
@@ -95,39 +113,73 @@ impl DispatcherPrivate {
         trace!("Builder dispatched {:?}", builder);
         return true;
     }
-    async fn dispatch_job(&mut self, job: EjDeployableJob) {
-        let jobdb = EjJobDb::fetch_by_id(&job.id, &self.dispatcher.connection).unwrap();
+    async fn dispatch_job(&mut self, mut job: DispatchedJob) {
+        let jobdb = EjJobDb::fetch_by_id(&job.data.id, &self.dispatcher.connection).unwrap();
         if let Err(err) = jobdb.update_status(EjJobStatus::running(), &self.dispatcher.connection) {
-            error!("Failed to update job {} status in database {err}", job.id);
+            error!(
+                "Failed to update job {} status in database {err}",
+                job.data.id
+            );
         }
 
         let builders = self.dispatcher.builders.lock().await;
-        info!("Dispatching job {} to {} builders", job.id, builders.len());
+        info!(
+            "Dispatching job {} to {} builders",
+            job.data.id,
+            builders.len()
+        );
 
         let mut dispatched_builders = HashSet::new();
         for builder in builders.iter() {
-            if DispatcherPrivate::dispatch_job_to_single_builder(job.clone(), &builder).await {
+            if DispatcherPrivate::dispatch_job_to_single_builder(job.data.clone(), &builder).await {
                 dispatched_builders.insert(builder.builder.id);
             }
         }
         if dispatched_builders.is_empty() {
             error!("No builder available for job dispatch");
+            DispatcherPrivate::send_job_update(
+                &mut job.tx,
+                EjJobUpdate::JobCancelled(EjJobCancelReason::NoBuilders),
+            )
+            .await;
         } else {
+            DispatcherPrivate::send_job_update(
+                &mut job.tx,
+                EjJobUpdate::JobStarted {
+                    nb_builders: dispatched_builders.len(),
+                },
+            )
+            .await;
             self.state = DispatcherState::DispatchedJob {
                 job: job,
                 deployed_builders: dispatched_builders,
             };
         }
     }
-    async fn handle_dispatch_job(&mut self, job: EjDeployableJob) -> Result<()> {
+    async fn handle_dispatch_job(&mut self, mut job: DispatchedJob) -> Result<()> {
         match self.state {
             DispatcherState::Idle => self.dispatch_job(job).await,
             DispatcherState::DispatchedJob { .. } => {
-                info!("Can't dispatch new job as there is already one in progress. Adding new job {} to job queue", job.id);
+                info!(
+                    "Can't dispatch new job as there is already one in progress. Adding new job {} to job queue",
+                    job.data.id
+                );
+                DispatcherPrivate::send_job_update(
+                    &mut job.tx,
+                    EjJobUpdate::JobAddedToQueue {
+                        queue_position: self.pending_jobs.len(),
+                    },
+                )
+                .await;
                 self.pending_jobs.push_back(job);
             }
         }
         Ok(())
+    }
+    async fn send_job_update(tx: &mut Sender<EjJobUpdate>, update: EjJobUpdate) {
+        if let Err(err) = tx.send(update).await {
+            error!("Failed to send job update through internal channel {err}");
+        }
     }
 
     async fn handle_job_completed(
@@ -144,14 +196,14 @@ impl DispatcherPrivate {
                 );
             }
             DispatcherState::DispatchedJob {
-                ref job,
+                ref mut job,
                 ref mut deployed_builders,
             } => {
                 info!(
                     "Builder {} finished job {}. Currently deployed builders: {:?}",
-                    builder_id, job.id, deployed_builders
+                    builder_id, job.data.id, deployed_builders
                 );
-                if job.id == completed_job_id {
+                if job.data.id == completed_job_id {
                     if !deployed_builders.remove(&builder_id) {
                         warn!(
                             "Received unexpected JobCompleted message from builder {}",
@@ -163,6 +215,9 @@ impl DispatcherPrivate {
                             "Job completed by all builders. # of pending jobs {}",
                             self.pending_jobs.len()
                         );
+
+                        DispatcherPrivate::send_job_update(&mut job.tx, EjJobUpdate::JobFinished)
+                            .await;
                         match self.pending_jobs.pop_front() {
                             Some(new_job) => {
                                 self.dispatch_job(new_job).await;
@@ -175,7 +230,7 @@ impl DispatcherPrivate {
                 } else {
                     info!(
                         "Builder {} finished job {} but we're running job {}",
-                        builder_id, completed_job_id, job.id
+                        builder_id, completed_job_id, job.data.id
                     );
 
                     let connected_builders = self.dispatcher.builders.lock().await;
@@ -184,14 +239,23 @@ impl DispatcherPrivate {
                         .find(|b| b.builder.id == builder_id)
                     {
                         Some(builder) => {
-                            info!("Dispatching job {} to builder {}", job.id, builder.builder.id);
-                            if DispatcherPrivate::dispatch_job_to_single_builder(job.clone(), &builder)
-                                .await
+                            info!(
+                                "Dispatching job {} to builder {}",
+                                job.data.id, builder.builder.id
+                            );
+                            if DispatcherPrivate::dispatch_job_to_single_builder(
+                                job.data.clone(),
+                                &builder,
+                            )
+                            .await
                             {
                                 deployed_builders.insert(builder.builder.id);
                             }
                         }
-                        None => error!("Couldn't find builder {} that just completed job in the connected builder's list {:?}", builder_id, connected_builders),
+                        None => error!(
+                            "Couldn't find builder {} that just completed job in the connected builder's list {:?}",
+                            builder_id, connected_builders
+                        ),
                     }
                 }
             }
@@ -211,14 +275,21 @@ impl Dispatcher {
         DispatcherPrivate::create(connection)
     }
 
-    pub async fn dispatch_job(&mut self, job: EjJob) -> Result<EjDeployableJob> {
+    pub async fn dispatch_job(
+        &mut self,
+        job: EjJob,
+        job_update_tx: Sender<EjJobUpdate>,
+    ) -> Result<EjDeployableJob> {
         if self.builders.lock().await.len() == 0 {
             return Err(Error::NoBuildersAvailable);
         }
         let job = job.create(&mut self.connection)?;
 
         self.tx
-            .send(DispatcherEvent::DispatchJob(job.clone()))
+            .send(DispatcherEvent::DispatchJob {
+                job: job.clone(),
+                job_update_tx,
+            })
             .await
             .map_err(|err| {
                 error!("Failed to send dispatcher event {err}");

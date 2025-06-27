@@ -26,6 +26,18 @@ pub struct EjDeployableJob {
     pub remote_token: Option<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub enum EjJobCancelReason {
+    NoBuilders,
+}
+#[derive(Debug, Serialize, Deserialize)]
+pub enum EjJobUpdate {
+    JobStarted { nb_builders: usize },
+    JobCancelled(EjJobCancelReason),
+    JobAddedToQueue { queue_position: usize },
+    JobFinished,
+}
+
 impl EjJob {
     pub fn create(self, connection: &mut DbConnection) -> Result<EjDeployableJob> {
         let job = EjJobCreate {

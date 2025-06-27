@@ -1,19 +1,32 @@
 use ej::ej_client::db::EjClient;
 use ej::ej_client_permission::{ClientPermission, NewClientPermission};
+
+use ej::ej_job::api::EjJobUpdate;
 use ej::ej_message::{EjSocketClientMessage, EjSocketServerMessage};
 use ej::permission::Permission;
 use ej::prelude::*;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixStream;
+use tokio::net::unix::OwnedWriteHalf;
+use tokio::sync::mpsc::channel;
 use tokio::task::JoinHandle;
 use tracing::{error, info};
 
 use crate::dispatcher::Dispatcher;
 
+async fn send_message(writer: &mut OwnedWriteHalf, response: EjSocketServerMessage) -> Result<()> {
+    info!("Socket Response {:?}", response);
+    let serialized_response = serde_json::to_string(&response)?;
+    writer.write_all(serialized_response.as_bytes()).await?;
+    writer.write_all(b"\n").await?;
+    Ok(())
+}
+
 async fn handle_message(
+    writer: &mut OwnedWriteHalf,
     message: EjSocketClientMessage,
     dispatcher: &mut Dispatcher,
-) -> Result<(EjSocketServerMessage, bool)> {
+) -> Result<()> {
     match message {
         EjSocketClientMessage::CreateRootUser(payload) => {
             let clients = EjClient::fetch_all(&dispatcher.connection)?;
@@ -36,15 +49,28 @@ async fn handle_message(
                     error!("Failed to add permission {} to user {}", permission.id, err);
                 }
             }
-            Ok((EjSocketServerMessage::CreateRootUserOk(client), true))
+            send_message(writer, EjSocketServerMessage::CreateRootUserOk(client));
+            Ok(())
         }
         EjSocketClientMessage::Dispatch(job) => {
             info!("Dispatching job {:?}", job);
-            match dispatcher.dispatch_job(job).await {
-                Ok(job) => Ok((EjSocketServerMessage::DispatchOk(job), false)),
+            let (tx, mut rx) = channel(16);
+            match dispatcher.dispatch_job(job, tx).await {
+                Ok(job) => {
+                    send_message(writer, EjSocketServerMessage::DispatchOk(job)).await?;
+                    while let Some(msg) = rx.recv().await {
+                        let end = matches!(msg, EjJobUpdate::JobFinished);
+                        send_message(writer, EjSocketServerMessage::JobUpdate(msg)).await?;
+                        if end {
+                            return Ok(());
+                        }
+                    }
+                    Ok(())
+                }
                 Err(err) => {
                     error!("Failed to dispatch job - {}", err);
-                    Ok((EjSocketServerMessage::Error(err.to_string()), true))
+                    send_message(writer, EjSocketServerMessage::Error(err.to_string())).await?;
+                    Ok(())
                 }
             }
         }
@@ -64,24 +90,19 @@ async fn handle_client(mut dispatcher: Dispatcher, stream: UnixStream) -> Result
                 line.pop();
                 if let Ok(message) = serde_json::from_str::<EjSocketClientMessage>(&line) {
                     info!("Socket Message {:?}", message);
-                    let (response, close, err) =
-                        match handle_message(message, &mut dispatcher).await {
-                            Ok((response, close)) => (response, close, None),
-                            Err(err) => (
-                                EjSocketServerMessage::Error(err.to_string()),
-                                true,
-                                Some(err),
-                            ),
-                        };
-                    info!("Socket Response {:?} Error: {:?}", response, err);
-                    let serialized_response = serde_json::to_string(&response)?;
-                    writer.write_all(serialized_response.as_bytes()).await?;
-                    writer.write_all(b"\n").await?;
-                    if close {
-                        if let Some(err) = err {
-                            return Err(err);
-                        } else {
+                    match handle_message(&mut writer, message, &mut dispatcher).await {
+                        Ok(close) => {
+                            close;
                             return Ok(());
+                        }
+                        Err(err) => {
+                            error!("Error during socket message handling  - {err}");
+                            send_message(
+                                &mut writer,
+                                EjSocketServerMessage::Error(err.to_string()),
+                            )
+                            .await?;
+                            return Err(err);
                         }
                     }
                 } else {

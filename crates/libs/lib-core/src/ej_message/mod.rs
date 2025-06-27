@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     ej_client::api::{EjClientApi, EjClientPost},
-    ej_job::api::{EjDeployableJob, EjJob},
+    ej_job::api::{EjDeployableJob, EjJob, EjJobUpdate},
 };
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -20,6 +20,9 @@ pub enum EjSocketServerMessage {
     CreateRootUserOk(EjClientApi),
     CreateRootUserError,
     DispatchOk(EjDeployableJob),
+    JobUpdate(EjJobUpdate),
+    BuildJobResult,
+    RunJobResult,
     Error(String),
 }
 

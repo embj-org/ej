@@ -33,12 +33,22 @@ pub async fn handle_dispatch(
     stream.write_all(payload.as_bytes()).await;
     stream.write_all(b"\n").await;
     stream.flush().await;
-
     let mut reader = BufReader::new(stream);
-    let mut response = String::new();
-    reader.read_line(&mut response).await?;
-    let response: EjSocketServerMessage = serde_json::from_str(&response)?;
-    println!("{:?}", response);
+    let mut lines = reader.lines();
+
+    while let Some(line) = lines.next_line().await? {
+        match serde_json::from_str::<EjSocketServerMessage>(&line) {
+            Ok(message) => {
+                println!("Received: {:?}", message);
+            }
+            Err(e) => {
+                eprintln!("Failed to parse message: {}", e);
+                eprintln!("Raw message: {}", line);
+            }
+        }
+    }
+
+    println!("Connection closed by server");
     Ok(())
 }
 pub async fn handle_create_root_user(socket_path: &PathBuf, args: UserArgs) -> Result<()> {
