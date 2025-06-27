@@ -49,7 +49,7 @@ async fn handle_message(
                     error!("Failed to add permission {} to user {}", permission.id, err);
                 }
             }
-            send_message(writer, EjSocketServerMessage::CreateRootUserOk(client));
+            send_message(writer, EjSocketServerMessage::CreateRootUserOk(client)).await?;
             Ok(())
         }
         EjSocketClientMessage::Dispatch(job) => {
