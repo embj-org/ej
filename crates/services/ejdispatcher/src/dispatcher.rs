@@ -287,30 +287,40 @@ impl DispatcherPrivate {
                         "Builder {} finished job {} but we're running job {}",
                         builder_id, completed_job_id, job.data.id
                     );
-
-                    let connected_builders = self.dispatcher.builders.lock().await;
-                    match connected_builders
-                        .iter()
-                        .find(|b| b.builder.id == builder_id)
-                    {
-                        Some(builder) => {
-                            info!(
-                                "Dispatching job {} to builder {}",
-                                job.data.id, builder.builder.id
-                            );
-                            if DispatcherPrivate::dispatch_job_to_single_builder(
-                                job.data.clone(),
-                                &builder,
-                            )
-                            .await
-                            {
-                                job.deployed_builders.insert(builder.builder.id);
+                    if job.deployed_builders.contains(&builder_id) {
+                        info!(
+                            "Builder {} has already been dispatched for current job {}",
+                            builder_id, job.data.id
+                        );
+                    } else {
+                        info!(
+                            "Builder {} has NOT been dispatched for current job {}. Dispatching him",
+                            builder_id, job.data.id
+                        );
+                        let connected_builders = self.dispatcher.builders.lock().await;
+                        match connected_builders
+                            .iter()
+                            .find(|b| b.builder.id == builder_id)
+                        {
+                            Some(builder) => {
+                                info!(
+                                    "Dispatching job {} to builder {}",
+                                    job.data.id, builder.builder.id
+                                );
+                                if DispatcherPrivate::dispatch_job_to_single_builder(
+                                    job.data.clone(),
+                                    &builder,
+                                )
+                                .await
+                                {
+                                    job.deployed_builders.insert(builder.builder.id);
+                                }
                             }
+                            None => error!(
+                                "Couldn't find builder {} that just completed job in the connected builder's list {:?}",
+                                builder_id, connected_builders
+                            ),
                         }
-                        None => error!(
-                            "Couldn't find builder {} that just completed job in the connected builder's list {:?}",
-                            builder_id, connected_builders
-                        ),
                     }
                 }
             }
