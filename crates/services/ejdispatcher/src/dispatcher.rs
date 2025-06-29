@@ -382,6 +382,8 @@ mod test {
     use ej::ctx::ctx_client::CtxClient;
     use ej::db::config::DbConfig;
     use ej::ej_job::api::{EjJob, EjJobType};
+    use ej::ej_job::results::api::{EjBuildResult, EjRunResult};
+    use std::collections::HashMap;
     use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
     use std::time::Duration;
     use tokio::sync::mpsc;
@@ -586,5 +588,326 @@ mod test {
                 .expect("Should have update");
             assert_eq!(job_update, EjJobUpdate::JobStarted { nb_builders: 3 });
         });
+    }
+
+    #[tokio::test]
+    async fn test_job_queuing_when_one_already_in_progress() {
+        test!(|mut dispatcher: Dispatcher, _handle| async move {
+            // Add a builder
+            let builder_id = Uuid::new_v4();
+            let (builder_tx, _builder_rx) = channel(32);
+            let mock_builder = create_builder(builder_id, builder_tx);
+            dispatcher.builders.lock().await.push(mock_builder);
+
+            // Dispatch first job
+            let (job1_tx, mut job1_rx) = mpsc::channel(32);
+            let job1 = create_test_job();
+            let result1 = dispatcher.dispatch_job(job1, job1_tx).await;
+            assert!(result1.is_ok());
+
+            let update1 = timeout(Duration::from_millis(100), job1_rx.recv())
+                .await
+                .expect("Should receive update")
+                .expect("Should have update");
+            assert_eq!(update1, EjJobUpdate::JobStarted { nb_builders: 1 });
+
+            let (job2_tx, mut job2_rx) = mpsc::channel(32);
+            let job2 = create_test_job();
+            let result2 = dispatcher.dispatch_job(job2, job2_tx).await;
+            assert!(result2.is_ok());
+            let update2 = timeout(Duration::from_millis(100), job2_rx.recv())
+                .await
+                .expect("Should receive update")
+                .expect("Should have update");
+            assert_eq!(update2, EjJobUpdate::JobAddedToQueue { queue_position: 0 })
+        });
+    }
+
+    #[tokio::test]
+    async fn test_job_completion_single_builder() {
+        test!(|mut dispatcher: Dispatcher, _handle| async move {
+            // Add a builder
+            let builder_id = Uuid::new_v4();
+            let (builder_tx, _builder_rx) = channel(32);
+            let mock_builder = create_builder(builder_id, builder_tx);
+            dispatcher.builders.lock().await.push(mock_builder);
+
+            let (job_tx, mut job_rx) = mpsc::channel(32);
+            let job = create_test_job();
+            let result = dispatcher.dispatch_job(job, job_tx).await;
+            assert!(result.is_ok());
+            let job = result.unwrap();
+
+            let update = job_rx.recv().await.expect("Should receive JobStarted");
+            assert_eq!(update, EjJobUpdate::JobStarted { nb_builders: 1 });
+
+            let job_result = EjBuildResult {
+                job_id: job.id,
+                builder_id,
+                logs: HashMap::new(),
+                successful: true,
+            };
+
+            let completion_result = dispatcher.on_job_result(job_result).await;
+            assert!(completion_result.is_ok());
+
+            let update = timeout(Duration::from_millis(100), job_rx.recv())
+                .await
+                .expect("Should receive update")
+                .expect("Should have update");
+            assert_eq!(
+                update,
+                EjJobUpdate::JobFinished {
+                    success: true,
+                    logs: Vec::new()
+                }
+            );
+        })
+    }
+
+    #[tokio::test]
+    async fn test_job_completion_multiple_builders() {
+        test!(|mut dispatcher: Dispatcher, _handle| async move {
+            let builder_ids: Vec<Uuid> = (0..3).map(|_| Uuid::new_v4()).collect();
+            let (builders_tx, _builders_rx) = channel(10);
+            for &builder_id in &builder_ids {
+                let mock_builder = create_builder(builder_id, builders_tx.clone());
+                dispatcher.builders.lock().await.push(mock_builder);
+            }
+            drop(builders_tx);
+
+            // Dispatch a job
+            let (job_tx, mut job_rx) = mpsc::channel(32);
+            let job = create_test_job();
+            let result = dispatcher.dispatch_job(job, job_tx).await;
+            assert!(result.is_ok());
+            let job = result.unwrap();
+            let job_id = job.id;
+
+            let update = job_rx.recv().await.expect("Should receive JobStarted");
+            assert_eq!(
+                update,
+                EjJobUpdate::JobStarted {
+                    nb_builders: builder_ids.len()
+                }
+            );
+
+            for &builder_id in &builder_ids[0..2] {
+                let job_result = EjBuildResult {
+                    job_id,
+                    builder_id,
+                    successful: true,
+                    logs: HashMap::new(),
+                };
+
+                let completion_result = dispatcher.on_job_result(job_result).await;
+                assert!(completion_result.is_ok());
+
+                let timeout_result = timeout(Duration::from_millis(50), job_rx.recv()).await;
+                assert!(
+                    timeout_result.is_err(),
+                    "Should not receive JobFinished yet"
+                );
+            }
+
+            // Complete job on last builder - should finish now
+            let job_result = EjBuildResult {
+                job_id,
+                builder_id: builder_ids[2],
+                logs: HashMap::new(),
+                successful: true,
+            };
+
+            let completion_result = dispatcher.on_job_result(job_result).await;
+            assert!(completion_result.is_ok());
+
+            let update = timeout(Duration::from_millis(100), job_rx.recv())
+                .await
+                .expect("Should receive update")
+                .expect("Should have update");
+
+            assert_eq!(
+                update,
+                EjJobUpdate::JobFinished {
+                    success: true,
+                    logs: Vec::new()
+                }
+            );
+        })
+    }
+
+    #[tokio::test]
+    async fn test_queue_processing_after_job_completion() {
+        test!(|mut dispatcher: Dispatcher, _handle| async move {
+            let builder_id = Uuid::new_v4();
+            let (builder_tx, mut builder_rx) = channel(10);
+            let mock_builder = create_builder(builder_id, builder_tx);
+            dispatcher.builders.lock().await.push(mock_builder);
+
+            let (job1_tx, mut job1_rx) = mpsc::channel(32);
+            let job1 = create_test_job();
+            let result1 = dispatcher.dispatch_job(job1, job1_tx).await;
+            assert!(result1.is_ok());
+            let job1 = result1.unwrap();
+
+            let (job2_tx, mut job2_rx) = mpsc::channel(32);
+            let job2 = create_test_job();
+            let result2 = dispatcher.dispatch_job(job2, job2_tx).await;
+            assert!(result2.is_ok());
+            let job2 = result2.unwrap();
+
+            let job1_started = job1_rx.recv().await.expect("Job1 should start");
+            assert_eq!(job1_started, EjJobUpdate::JobStarted { nb_builders: 1 });
+
+            let builder_dispatch = timeout(Duration::from_millis(100), builder_rx.recv())
+                .await
+                .expect("Should receive dispatch")
+                .unwrap();
+            assert_eq!(builder_dispatch, EjServerMessage::Build(job1.clone()));
+
+            let job2_queued = job2_rx.recv().await.expect("Job2 should be queued");
+            assert_eq!(
+                job2_queued,
+                EjJobUpdate::JobAddedToQueue { queue_position: 0 }
+            );
+
+            let job1_result = EjBuildResult {
+                job_id: job1.id,
+                builder_id,
+                successful: true,
+                logs: HashMap::new(),
+            };
+
+            let completion_result = dispatcher.on_job_result(job1_result).await;
+            assert!(completion_result.is_ok());
+
+            let job1_finished = job1_rx.recv().await.expect("Job1 should finish");
+
+            assert_eq!(
+                job1_finished,
+                EjJobUpdate::JobFinished {
+                    success: true,
+                    logs: Vec::new()
+                }
+            );
+
+            let job2_started = timeout(Duration::from_millis(100), job2_rx.recv())
+                .await
+                .expect("Job2 should start")
+                .expect("Should have update");
+
+            assert_eq!(job2_started, EjJobUpdate::JobStarted { nb_builders: 1 });
+
+            let builder_dispatch = timeout(Duration::from_millis(100), builder_rx.recv())
+                .await
+                .expect("Should receive dispatch")
+                .unwrap();
+            assert_eq!(builder_dispatch, EjServerMessage::Build(job2.clone()));
+
+            let job2_result = EjBuildResult {
+                job_id: job2.id.clone(),
+                builder_id,
+                successful: true,
+                logs: HashMap::new(),
+            };
+
+            let completion_result = dispatcher.on_job_result(job2_result).await;
+            assert!(completion_result.is_ok());
+
+            let job2_finished = job2_rx.recv().await.expect("Job1 should finish");
+
+            assert_eq!(
+                job2_finished,
+                EjJobUpdate::JobFinished {
+                    success: true,
+                    logs: Vec::new()
+                }
+            );
+        })
+    }
+
+    #[tokio::test]
+    async fn test_build_and_run_job_completion() {
+        test!(|mut dispatcher: Dispatcher, _handle| async move {
+            let builder_id = Uuid::new_v4();
+            let (builder_tx, mut builder_rx) = channel(10);
+            let mock_builder = create_builder(builder_id, builder_tx);
+            dispatcher.builders.lock().await.push(mock_builder);
+
+            // Dispatch a BuildAndRun job
+            let (job_tx, mut job_rx) = mpsc::channel(32);
+            let mut job = create_test_job();
+            job.job_type = EjJobType::BuildAndRun;
+
+            let result = dispatcher.dispatch_job(job, job_tx).await;
+            assert!(result.is_ok());
+            let job = result.unwrap();
+
+            // Receive JobStarted
+            let update = job_rx.recv().await.expect("Should receive JobStarted");
+            assert_eq!(update, EjJobUpdate::JobStarted { nb_builders: 1 });
+
+            let builder_dispatch = timeout(Duration::from_millis(100), builder_rx.recv())
+                .await
+                .expect("Should receive dispatch")
+                .unwrap();
+            assert_eq!(builder_dispatch, EjServerMessage::BuildAndRun(job.clone()));
+
+            let job_result = EjRunResult {
+                job_id: job.id,
+                builder_id,
+                successful: true,
+                logs: HashMap::new(),
+                results: HashMap::new(),
+            };
+
+            let completion_result = dispatcher.on_job_result(job_result).await;
+            assert!(completion_result.is_ok());
+
+            let job_finished = timeout(Duration::from_millis(100), job_rx.recv())
+                .await
+                .expect("Should receive JobFinished")
+                .expect("Should have update");
+            let run_finished = timeout(Duration::from_millis(100), job_rx.recv())
+                .await
+                .expect("Should receive RunFinished")
+                .expect("Should have update");
+
+            assert_eq!(
+                job_finished,
+                EjJobUpdate::JobFinished {
+                    success: true,
+                    logs: Vec::new()
+                }
+            );
+            // Should also receive RunFinished for BuildAndRun jobs
+            assert_eq!(
+                run_finished,
+                EjJobUpdate::RunFinished {
+                    success: true,
+                    results: Vec::new()
+                }
+            );
+        })
+    }
+
+    #[tokio::test]
+    async fn test_unexpected_job_completion() {
+        test!(|mut dispatcher: Dispatcher, _handle| async move {
+            let builder_id = Uuid::new_v4();
+            let (builder_tx, _builder_rx) = channel(12);
+            let mock_builder = create_builder(builder_id, builder_tx);
+            dispatcher.builders.lock().await.push(mock_builder);
+
+            let job_result = EjBuildResult {
+                job_id: Uuid::new_v4(),
+                builder_id,
+                successful: true,
+                logs: HashMap::new(),
+            };
+
+            let completion_result = dispatcher.on_job_result(job_result).await;
+            assert!(completion_result.is_err());
+        })
     }
 }
