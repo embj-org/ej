@@ -58,22 +58,31 @@ pub async fn setup_api(dispatcher: Dispatcher) -> Result<JoinHandle<Result<()>>>
         .route_layer(require_permission!("builder"))
         .route_layer(middleware::from_fn(mw_require_auth));
 
-    let client_protected_routes = Router::new()
+    let builder_create_routes = Router::new()
         .route(&v1("client/builder"), post(create_builder))
-        .route(&v1("client/dispatch"), post(dispatch_job))
         .route_layer(require_permission!("builder.create"))
+        .route_layer(middleware::from_fn(mw_require_auth));
+
+    let client_dispatch_routes = Router::new()
+        .route(&v1("client/dispatch"), post(dispatch_job))
+        .route_layer(require_permission!("client.dispatch"))
+        .route_layer(middleware::from_fn(mw_require_auth));
+
+    let client_create_routes = Router::new()
+        .route(&v1("client"), post(post_client))
+        .route_layer(require_permission!("client.create"))
         .route_layer(middleware::from_fn(mw_require_auth));
 
     let client_routes = Router::new()
         .route(&v1("login"), post(login))
-        .route(&v1("builder/login"), post(login_builder_api))
-        /* TODO: Move this to protected routes*/
-        .route(&v1("client"), post(post_client));
+        .route(&v1("builder/login"), post(login_builder_api));
 
     let app = Router::new()
         .merge(builder_routes)
         .merge(client_routes)
-        .merge(client_protected_routes)
+        .merge(builder_create_routes)
+        .merge(client_create_routes)
+        .merge(client_dispatch_routes)
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(DefaultMakeSpan::default().include_headers(true)),
