@@ -557,7 +557,7 @@ checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
 
 [[package]]
 name = "ej"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "argon2",
  "axum",
@@ -589,7 +589,7 @@ dependencies = [
 
 [[package]]
 name = "ejb"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -612,7 +612,7 @@ dependencies = [
 
 [[package]]
 name = "ejcli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "clap",
  "ej",
@@ -631,10 +631,12 @@ dependencies = [
 
 [[package]]
 name = "ejd"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axum",
  "chrono",
+ "diesel",
+ "diesel_migrations",
  "ej",
  "futures",
  "futures-util",
@@ -1281,14 +1283,14 @@ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
 name = "lib-io"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "ntest",
 ]
 
 [[package]]
 name = "lib-requests"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "ej",
  "reqwest",

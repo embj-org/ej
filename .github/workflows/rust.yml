@@ -1,4 +1,4 @@
-name: Rust
+name: Build and test
 
 on:
   push:
@@ -10,10 +10,32 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  build-test:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-
     - name: Build and test
-      run: cargo test --verbose
+      run: |
+        export $(cat ./dev-config/dev.env | xargs)
+        docker compose up -d 
+        cargo build & # Build while container gets setup
+        echo "Waiting for PostgreSQL database to be ready..."
+        max_attempts=30
+        attempt=1
+        
+        while [ $attempt -le $max_attempts ]; do
+            if psql "$DATABASE_URL" -c '\q' >/dev/null 2>&1; then
+                break
+            fi
+            
+            if [ $attempt -eq $max_attempts ]; then
+                echo "Database failed to become ready after $max_attempts attempts"
+                echo "============================================================"
+                docker compose logs
+                echo "============================================================"
+                exit 1
+            fi
+            sleep 2
+            ((attempt++))
+        done
+        cargo test --verbose

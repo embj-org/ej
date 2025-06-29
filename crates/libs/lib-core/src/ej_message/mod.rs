@@ -7,7 +7,7 @@ use crate::{
     ej_job::api::{EjDeployableJob, EjJob, EjJobUpdate},
 };
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EjServerMessage {
     Build(EjDeployableJob),
     BuildAndRun(EjDeployableJob),

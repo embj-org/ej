@@ -22,7 +22,7 @@ pub struct EjJob {
     pub remote_token: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct EjDeployableJob {
     pub id: Uuid,
     pub job_type: EjJobType,
@@ -31,12 +31,12 @@ pub struct EjDeployableJob {
     pub remote_token: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EjJobCancelReason {
     NoBuilders,
     Timeout,
 }
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EjJobUpdate {
     JobStarted {
         nb_builders: usize,

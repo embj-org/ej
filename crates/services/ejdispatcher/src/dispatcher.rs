@@ -373,3 +373,218 @@ impl Dispatcher {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use diesel::prelude::*;
+    use diesel::r2d2::{ConnectionManager, Pool};
+    use ej::ctx::ctx_client::CtxClient;
+    use ej::db::config::DbConfig;
+    use ej::ej_job::api::{EjJob, EjJobType};
+    use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+    use std::time::Duration;
+    use tokio::sync::mpsc;
+    use tokio::time::timeout;
+    use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+    use uuid::Uuid;
+
+    static INIT: std::sync::Once = std::sync::Once::new();
+
+    fn setup_test_environment() {
+        INIT.call_once(|| {
+            tracing_subscriber::registry()
+                .with(tracing_subscriber::fmt::layer())
+                .init();
+        });
+    }
+
+    struct DbTestContext {
+        pub connection: DbConnection,
+        base_url: String,
+        db_name: String,
+    }
+    impl DbTestContext {
+        pub fn create() -> Self {
+            let base_url =
+                std::env::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL env variable missing");
+
+            let test_db_name = format!("ej_test_{}", uuid::Uuid::new_v4().simple());
+
+            // Connect to base database to create test database
+            let base_manager =
+                ConnectionManager::<PgConnection>::new(&format!("{}/postgres", base_url));
+            let base_pool = Pool::builder()
+                .max_size(1)
+                .build(base_manager)
+                .expect("Failed to connect to base database");
+
+            {
+                let mut conn = base_pool.get().expect("Failed to get connection");
+                diesel::sql_query(&format!("CREATE DATABASE {}", test_db_name))
+                    .execute(&mut conn)
+                    .expect("Failed to create test database");
+            }
+            let config = DbConfig {
+                database_url: format!("{}/{}", base_url, test_db_name),
+            };
+            let test_connection = DbConnection::new(&config).setup();
+            let db_context = DbTestContext {
+                connection: test_connection,
+                base_url,
+                db_name: test_db_name,
+            };
+
+            db_context
+        }
+    }
+    impl Drop for DbTestContext {
+        fn drop(&mut self) {
+            let base_manager =
+                ConnectionManager::<PgConnection>::new(&format!("{}/postgres", self.base_url));
+            let base_pool = Pool::builder()
+                .max_size(1)
+                .build(base_manager)
+                .expect("Failed to connect to base database for cleanup");
+
+            {
+                let mut conn = base_pool
+                    .get()
+                    .expect("Failed to get connection for cleanup");
+
+                diesel::sql_query(&format!(
+                    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{}'",
+                    self.db_name
+                ))
+                .execute(&mut conn)
+                .ok();
+
+                diesel::sql_query(&format!("DROP DATABASE IF EXISTS {}", self.db_name))
+                    .execute(&mut conn)
+                    .ok();
+            }
+        }
+    }
+
+    fn create_builder(builder_id: Uuid, tx: Sender<EjServerMessage>) -> EjConnectedBuilder {
+        EjConnectedBuilder {
+            builder: CtxClient { id: builder_id },
+            tx,
+            addr: SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(10, 0, 0, 2), 11111)),
+        }
+    }
+
+    fn create_test_job() -> EjJob {
+        EjJob {
+            job_type: EjJobType::Build,
+            commit_hash: String::from("HASH"),
+            remote_url: String::from("URL"),
+            remote_token: None,
+        }
+    }
+
+    async fn setup_dispatcher(connection: DbConnection) -> (Dispatcher, JoinHandle<()>) {
+        Dispatcher::create(connection)
+    }
+
+    macro_rules! test {
+        ($test_fn:expr) => {{
+            setup_test_environment();
+            let result = {
+                let context = DbTestContext::create();
+                let (dispatcher, handle) = setup_dispatcher(context.connection.clone()).await;
+                $test_fn(dispatcher, handle).await
+            };
+            result
+        }};
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_job_no_builders_available() {
+        test!(|mut dispatcher: Dispatcher, _handle| async move {
+            let (job_update_tx, _job_update_rx) = mpsc::channel(32);
+
+            let job = create_test_job();
+            let result = dispatcher.dispatch_job(job, job_update_tx).await;
+            assert!(result.is_err());
+            match result {
+                Err(Error::NoBuildersAvailable) => {}
+                _ => panic!("Expected NoBuildersAvailable error"),
+            }
+        });
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_job_with_single_builder() {
+        test!(|mut dispatcher: Dispatcher, _handle| async move {
+            let (job_update_tx, mut job_update_rx) = mpsc::channel(32);
+
+            // Add a mock builder
+            let builder_id = Uuid::new_v4();
+            let (builder_tx, mut builder_rx) = channel(32);
+            let builder = create_builder(builder_id, builder_tx);
+            dispatcher.builders.lock().await.push(builder);
+
+            let job = create_test_job();
+
+            // Dispatch the job
+            let result = dispatcher.dispatch_job(job, job_update_tx).await;
+            assert!(result.is_ok());
+
+            let builder_dispatch = timeout(Duration::from_millis(100), builder_rx.recv())
+                .await
+                .expect("Should receive dispatch")
+                .unwrap();
+            assert_eq!(builder_dispatch, EjServerMessage::Build(result.unwrap()));
+
+            // Should receive JobStarted update
+            let job_update = timeout(Duration::from_millis(100), job_update_rx.recv())
+                .await
+                .expect("Should receive update")
+                .expect("Should have update");
+
+            match job_update {
+                EjJobUpdate::JobStarted { nb_builders } => {
+                    assert_eq!(nb_builders, 1);
+                }
+                _ => panic!("Expected JobStarted update, got {:?}", job_update),
+            }
+        });
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_job_with_multiple_builders() {
+        test!(|mut dispatcher: Dispatcher, _handle| async move {
+            let (job_update_tx, mut job_update_rx) = mpsc::channel(32);
+
+            // Add multiple mock builders
+            let builder_ids: Vec<Uuid> = (0..3).map(|_| Uuid::new_v4()).collect();
+            let (builders_tx, mut builders_rx) = channel(16);
+            for &builder_id in &builder_ids {
+                let mock_builder = create_builder(builder_id, builders_tx.clone());
+                dispatcher.builders.lock().await.push(mock_builder);
+            }
+            drop(builders_tx);
+
+            let job = create_test_job();
+
+            let result = dispatcher.dispatch_job(job, job_update_tx).await;
+            assert!(result.is_ok());
+            let job = result.unwrap();
+
+            for _ in 0..builder_ids.len() {
+                let builder_dispatch = timeout(Duration::from_millis(100), builders_rx.recv())
+                    .await
+                    .expect("Should receive dispatch")
+                    .unwrap();
+                assert_eq!(builder_dispatch, EjServerMessage::Build(job.clone()));
+            }
+
+            let job_update = timeout(Duration::from_millis(100), job_update_rx.recv())
+                .await
+                .expect("Should receive update")
+                .expect("Should have update");
+            assert_eq!(job_update, EjJobUpdate::JobStarted { nb_builders: 3 });
+        });
+    }
+}
