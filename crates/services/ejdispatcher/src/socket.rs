@@ -51,10 +51,10 @@ async fn handle_message(
             send_message(writer, EjSocketServerMessage::CreateRootUserOk(client)).await?;
             Ok(())
         }
-        EjSocketClientMessage::Dispatch(job) => {
+        EjSocketClientMessage::Dispatch { job, timeout } => {
             info!("Dispatching job {:?}", job);
             let (tx, mut rx) = channel(16);
-            match dispatcher.dispatch_job(job, tx).await {
+            match dispatcher.dispatch_job(job, tx, timeout).await {
                 Ok(job) => {
                     send_message(writer, EjSocketServerMessage::DispatchOk(job)).await?;
                     while let Some(msg) = rx.recv().await {

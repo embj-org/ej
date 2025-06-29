@@ -6,7 +6,7 @@ use ej::{
     prelude::*,
 };
 use lib_requests::ApiClient;
-use std::path::PathBuf;
+use std::{path::PathBuf, time::Duration};
 use tokio::{
     io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
     net::UnixStream,
@@ -16,7 +16,7 @@ use crate::cli::{DispatchArgs, UserArgs};
 
 pub async fn handle_dispatch(
     socket_path: &PathBuf,
-    job: DispatchArgs,
+    dispatch: DispatchArgs,
     job_type: EjJobType,
 ) -> Result<()> {
     println!("Dispatching job");
@@ -24,11 +24,15 @@ pub async fn handle_dispatch(
 
     let job = EjJob {
         job_type: job_type,
-        commit_hash: job.commit_hash,
-        remote_url: job.remote_url,
-        remote_token: job.remote_token,
+        commit_hash: dispatch.commit_hash,
+        remote_url: dispatch.remote_url,
+        remote_token: dispatch.remote_token,
     };
-    let message = EjSocketClientMessage::Dispatch(job);
+    let message = EjSocketClientMessage::Dispatch {
+        job,
+        timeout: Duration::from_secs(dispatch.seconds),
+    };
+
     let payload = serde_json::to_string(&message)?;
     stream.write_all(payload.as_bytes()).await;
     stream.write_all(b"\n").await;

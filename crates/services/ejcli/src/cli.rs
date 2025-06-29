@@ -3,7 +3,7 @@ use ej::{
     ej_client::api::EjClientPost,
     ej_job::api::{EjJob, EjJobType},
 };
-use std::path::PathBuf;
+use std::{path::PathBuf, time::Duration};
 
 #[derive(Parser)]
 #[command(name = "ejc")]
@@ -55,6 +55,10 @@ pub enum Commands {
 }
 #[derive(Args)]
 pub struct DispatchArgs {
+    /// The maximum job duration in seconds
+    #[arg(long)]
+    pub seconds: u64,
+
     /// Git commit hash
     #[arg(long)]
     pub commit_hash: String,

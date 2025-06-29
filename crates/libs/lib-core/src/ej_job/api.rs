@@ -31,7 +31,7 @@ pub struct EjDeployableJob {
     pub remote_token: Option<String>,
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EjJobCancelReason {
     NoBuilders,
     Timeout,

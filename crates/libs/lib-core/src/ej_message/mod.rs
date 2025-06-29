@@ -1,16 +1,18 @@
-use std::fmt;
+use std::{fmt, time::Duration};
 
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::{
     ej_client::api::{EjClientApi, EjClientPost},
-    ej_job::api::{EjDeployableJob, EjJob, EjJobUpdate},
+    ej_job::api::{EjDeployableJob, EjJob, EjJobCancelReason, EjJobUpdate},
 };
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EjServerMessage {
     Build(EjDeployableJob),
     BuildAndRun(EjDeployableJob),
+    Cancel(EjJobCancelReason, Uuid),
     Close,
 }
 
@@ -20,7 +22,7 @@ pub enum EjClientMessage {}
 #[derive(Debug, Serialize, Deserialize)]
 pub enum EjSocketClientMessage {
     CreateRootUser(EjClientPost),
-    Dispatch(EjJob),
+    Dispatch { job: EjJob, timeout: Duration },
 }
 
 #[derive(Debug, Serialize, Deserialize)]

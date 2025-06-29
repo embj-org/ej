@@ -1,5 +1,6 @@
 use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
+use std::time::Duration;
 
 use ej::ej_config::ej_board_config::EjBoardConfigApi;
 use ej::ej_job::api::{EjDeployableJob, EjJob, EjJobCancelReason, EjJobType, EjJobUpdate};
@@ -11,6 +12,7 @@ use ej::ej_job::status::db::EjJobStatus;
 use ej::ej_message::EjServerMessage;
 use ej::prelude::*;
 use ej::{db::connection::DbConnection, ej_connected_builder::EjConnectedBuilder};
+use tokio::time::sleep;
 use tokio::{
     sync::{
         Mutex,
@@ -18,7 +20,7 @@ use tokio::{
     },
     task::JoinHandle,
 };
-use tracing::{error, info, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -26,10 +28,15 @@ pub enum DispatcherEvent {
     DispatchJob {
         job: EjDeployableJob,
         job_update_tx: Sender<EjJobUpdate>,
+        timeout: Duration,
     },
     JobCompleted {
         job_id: Uuid,
         builder_id: Uuid,
+    },
+
+    Timeout {
+        job_id: Uuid,
     },
 }
 
@@ -44,25 +51,66 @@ pub struct Dispatcher {
 struct DispatchedJob {
     data: EjDeployableJob,
     tx: Sender<EjJobUpdate>,
+    timeout: Duration,
 }
 
 #[derive(Debug)]
 struct RunningJob {
     data: EjDeployableJob,
-    tx: Sender<EjJobUpdate>,
+    job_update_tx: Sender<EjJobUpdate>,
     deployed_builders: HashSet<Uuid>,
+
+    dispatcher_tx: Sender<DispatcherEvent>,
+    timeout: Duration,
+    timeout_handle: JoinHandle<()>,
 }
 
 impl DispatchedJob {
-    pub fn new(data: EjDeployableJob, tx: Sender<EjJobUpdate>) -> Self {
-        Self { data, tx }
+    pub fn new(data: EjDeployableJob, tx: Sender<EjJobUpdate>, timeout: Duration) -> Self {
+        Self { data, tx, timeout }
     }
-    pub fn start(self, deployed_builders: HashSet<Uuid>) -> RunningJob {
-        RunningJob {
-            data: self.data,
-            tx: self.tx,
+    pub fn start(
+        self,
+        dispatcher_tx: Sender<DispatcherEvent>,
+        deployed_builders: HashSet<Uuid>,
+    ) -> RunningJob {
+        RunningJob::new(self, dispatcher_tx, deployed_builders)
+    }
+}
+impl RunningJob {
+    fn new(
+        job: DispatchedJob,
+        dispatcher_tx: Sender<DispatcherEvent>,
+        deployed_builders: HashSet<Uuid>,
+    ) -> Self {
+        let timeout = job.timeout;
+        let tx = dispatcher_tx.clone();
+        let job_id = job.data.id;
+
+        Self {
+            data: job.data,
+            job_update_tx: job.tx,
+            timeout: job.timeout,
             deployed_builders,
+            timeout_handle: RunningJob::create_task(tx, job_id, timeout),
+            dispatcher_tx,
         }
+    }
+    fn create_task(tx: Sender<DispatcherEvent>, job_id: Uuid, timeout: Duration) -> JoinHandle<()> {
+        tokio::spawn(async move {
+            sleep(timeout).await;
+            if let Err(err) = tx.send(DispatcherEvent::Timeout { job_id }).await {
+                error!("Failed to send Timeout Dispatcher Event for job {job_id} - {err}");
+            }
+        })
+    }
+
+    fn renew_timeout(&mut self) {
+        self.timeout_handle.abort();
+        let timeout = self.timeout;
+        let tx = self.dispatcher_tx.clone();
+        let job_id = self.data.id.clone();
+        self.timeout_handle = RunningJob::create_task(tx, job_id, timeout);
     }
 }
 
@@ -100,13 +148,18 @@ impl DispatcherPrivate {
                     message, self.state
                 );
                 let result = match message {
-                    DispatcherEvent::DispatchJob { job, job_update_tx } => {
-                        self.handle_dispatch_job(DispatchedJob::new(job, job_update_tx))
+                    DispatcherEvent::DispatchJob {
+                        job,
+                        job_update_tx,
+                        timeout,
+                    } => {
+                        self.handle_dispatch_job(DispatchedJob::new(job, job_update_tx, timeout))
                             .await
                     }
                     DispatcherEvent::JobCompleted { job_id, builder_id } => {
                         self.handle_job_completed(job_id, builder_id).await
                     }
+                    DispatcherEvent::Timeout { job_id } => self.handle_job_timeout(job_id).await,
                 };
                 if let Err(err) = result {
                     error!("Error while handling last dispatcher message - {}", err);
@@ -159,6 +212,15 @@ impl DispatcherPrivate {
                 EjJobUpdate::JobCancelled(EjJobCancelReason::NoBuilders),
             )
             .await;
+            let jobdb = EjJobDb::fetch_by_id(&job.data.id, &self.dispatcher.connection).unwrap();
+            if let Err(err) =
+                jobdb.update_status(EjJobStatus::running(), &self.dispatcher.connection)
+            {
+                error!(
+                    "Failed to update job {} status in database {err}",
+                    job.data.id
+                );
+            }
         } else {
             DispatcherPrivate::send_job_update(
                 &mut job.tx,
@@ -168,7 +230,7 @@ impl DispatcherPrivate {
             )
             .await;
             self.state = DispatcherState::DispatchedJob {
-                job: job.start(dispatched_builders),
+                job: job.start(self.dispatcher.tx.clone(), dispatched_builders),
             };
         }
     }
@@ -209,7 +271,7 @@ impl DispatcherPrivate {
             logs.push((config_api, logdb.log));
         }
         DispatcherPrivate::send_job_update(
-            &job.tx,
+            &job.job_update_tx,
             EjJobUpdate::JobFinished {
                 success: jobdb.success(),
                 logs: logs,
@@ -226,7 +288,7 @@ impl DispatcherPrivate {
                 results.push((config_api, resultdb.result));
             }
             DispatcherPrivate::send_job_update(
-                &job.tx,
+                &job.job_update_tx,
                 EjJobUpdate::RunFinished {
                     success: jobdb.success(),
                     results,
@@ -314,6 +376,7 @@ impl DispatcherPrivate {
                                 .await
                                 {
                                     job.deployed_builders.insert(builder.builder.id);
+                                    job.renew_timeout();
                                 }
                             }
                             None => error!(
@@ -326,6 +389,71 @@ impl DispatcherPrivate {
             }
         }
         Ok(())
+    }
+    async fn cancel_running_job(
+        builders: &Arc<Mutex<Vec<EjConnectedBuilder>>>,
+        job: &mut RunningJob,
+        connection: &DbConnection,
+        reason: EjJobCancelReason,
+    ) -> Result<()> {
+        let connected_builders = builders.lock().await;
+        for connected_builder in connected_builders.iter() {
+            if !job
+                .deployed_builders
+                .contains(&connected_builder.builder.id)
+            {
+                continue;
+            }
+            if let Err(err) = connected_builder
+                .tx
+                .send(EjServerMessage::Cancel(reason, job.data.id.clone()))
+                .await
+            {
+                error!(
+                    "Failed to send cancel message to builder {} - {err}",
+                    connected_builder.builder.id
+                );
+            }
+        }
+        DispatcherPrivate::cancel_job(&job.data.id, &mut job.job_update_tx, connection, reason)
+            .await
+    }
+    async fn cancel_job(
+        job_id: &Uuid,
+        tx: &mut Sender<EjJobUpdate>,
+        connection: &DbConnection,
+        reason: EjJobCancelReason,
+    ) -> Result<()> {
+        DispatcherPrivate::send_job_update(tx, EjJobUpdate::JobCancelled(reason)).await;
+        let jobdb = EjJobDb::fetch_by_id(&job_id, &connection).unwrap();
+        if let Err(err) = jobdb.update_status(EjJobStatus::cancelled(), &connection) {
+            error!("Failed to update job {} status in database {err}", job_id);
+        }
+        Ok(())
+    }
+
+    async fn handle_job_timeout(&mut self, job_id: Uuid) -> Result<()> {
+        match self.state {
+            DispatcherState::Idle => {
+                debug!("Received job timeout but we're already in idle");
+                Ok(())
+            }
+            DispatcherState::DispatchedJob { ref mut job } => {
+                if job.data.id != job_id {
+                    debug!("Job {} timed out but we're running {}", job_id, job.data.id);
+                    return Ok(());
+                }
+
+                info!("Job {job_id} timed out. Cancelling it");
+                DispatcherPrivate::cancel_running_job(
+                    &self.dispatcher.builders,
+                    job,
+                    &self.dispatcher.connection,
+                    EjJobCancelReason::Timeout,
+                )
+                .await
+            }
+        }
     }
 }
 impl Dispatcher {
@@ -344,6 +472,7 @@ impl Dispatcher {
         &mut self,
         job: EjJob,
         job_update_tx: Sender<EjJobUpdate>,
+        timeout: Duration,
     ) -> Result<EjDeployableJob> {
         if self.builders.lock().await.len() == 0 {
             return Err(Error::NoBuildersAvailable);
@@ -354,6 +483,7 @@ impl Dispatcher {
             .send(DispatcherEvent::DispatchJob {
                 job: job.clone(),
                 job_update_tx,
+                timeout,
             })
             .await
             .map_err(|err| {
@@ -517,7 +647,9 @@ mod test {
             let (job_update_tx, _job_update_rx) = mpsc::channel(32);
 
             let job = create_test_job();
-            let result = dispatcher.dispatch_job(job, job_update_tx).await;
+            let result = dispatcher
+                .dispatch_job(job, job_update_tx, Duration::from_secs(60))
+                .await;
             assert!(result.is_err());
             match result {
                 Err(Error::NoBuildersAvailable) => {}
@@ -540,7 +672,9 @@ mod test {
             let job = create_test_job();
 
             // Dispatch the job
-            let result = dispatcher.dispatch_job(job, job_update_tx).await;
+            let result = dispatcher
+                .dispatch_job(job, job_update_tx, Duration::from_secs(60))
+                .await;
             assert!(result.is_ok());
 
             let builder_dispatch = timeout(Duration::from_millis(100), builder_rx.recv())
@@ -580,7 +714,9 @@ mod test {
 
             let job = create_test_job();
 
-            let result = dispatcher.dispatch_job(job, job_update_tx).await;
+            let result = dispatcher
+                .dispatch_job(job, job_update_tx, Duration::from_secs(60))
+                .await;
             assert!(result.is_ok());
             let job = result.unwrap();
 
@@ -612,7 +748,9 @@ mod test {
             // Dispatch first job
             let (job1_tx, mut job1_rx) = mpsc::channel(32);
             let job1 = create_test_job();
-            let result1 = dispatcher.dispatch_job(job1, job1_tx).await;
+            let result1 = dispatcher
+                .dispatch_job(job1, job1_tx, Duration::from_secs(60))
+                .await;
             assert!(result1.is_ok());
 
             let update1 = timeout(Duration::from_millis(100), job1_rx.recv())
@@ -623,7 +761,9 @@ mod test {
 
             let (job2_tx, mut job2_rx) = mpsc::channel(32);
             let job2 = create_test_job();
-            let result2 = dispatcher.dispatch_job(job2, job2_tx).await;
+            let result2 = dispatcher
+                .dispatch_job(job2, job2_tx, Duration::from_secs(60))
+                .await;
             assert!(result2.is_ok());
             let update2 = timeout(Duration::from_millis(100), job2_rx.recv())
                 .await
@@ -644,7 +784,9 @@ mod test {
 
             let (job_tx, mut job_rx) = mpsc::channel(32);
             let job = create_test_job();
-            let result = dispatcher.dispatch_job(job, job_tx).await;
+            let result = dispatcher
+                .dispatch_job(job, job_tx, Duration::from_secs(60))
+                .await;
             assert!(result.is_ok());
             let job = result.unwrap();
 
@@ -689,7 +831,9 @@ mod test {
             // Dispatch a job
             let (job_tx, mut job_rx) = mpsc::channel(32);
             let job = create_test_job();
-            let result = dispatcher.dispatch_job(job, job_tx).await;
+            let result = dispatcher
+                .dispatch_job(job, job_tx, Duration::from_secs(60))
+                .await;
             assert!(result.is_ok());
             let job = result.unwrap();
             let job_id = job.id;
@@ -756,13 +900,17 @@ mod test {
 
             let (job1_tx, mut job1_rx) = mpsc::channel(32);
             let job1 = create_test_job();
-            let result1 = dispatcher.dispatch_job(job1, job1_tx).await;
+            let result1 = dispatcher
+                .dispatch_job(job1, job1_tx, Duration::from_secs(60))
+                .await;
             assert!(result1.is_ok());
             let job1 = result1.unwrap();
 
             let (job2_tx, mut job2_rx) = mpsc::channel(32);
             let job2 = create_test_job();
-            let result2 = dispatcher.dispatch_job(job2, job2_tx).await;
+            let result2 = dispatcher
+                .dispatch_job(job2, job2_tx, Duration::from_secs(60))
+                .await;
             assert!(result2.is_ok());
             let job2 = result2.unwrap();
 
@@ -849,7 +997,9 @@ mod test {
             let mut job = create_test_job();
             job.job_type = EjJobType::BuildAndRun;
 
-            let result = dispatcher.dispatch_job(job, job_tx).await;
+            let result = dispatcher
+                .dispatch_job(job, job_tx, Duration::from_secs(60))
+                .await;
             assert!(result.is_ok());
             let job = result.unwrap();
 
@@ -919,5 +1069,57 @@ mod test {
             let completion_result = dispatcher.on_job_result(job_result).await;
             assert!(completion_result.is_err());
         })
+    }
+
+    #[tokio::test]
+    async fn test_job_timeout() {
+        test!(|mut dispatcher: Dispatcher, _handle| async move {
+            let (job_update_tx, mut job_update_rx) = mpsc::channel(32);
+
+            let builder_id = Uuid::new_v4();
+            let (builder_tx, mut builder_rx) = channel(32);
+            let builder = create_builder(builder_id, builder_tx);
+            dispatcher.builders.lock().await.push(builder);
+
+            let job = create_test_job();
+
+            // Dispatch the job
+            let result = dispatcher
+                .dispatch_job(job, job_update_tx, Duration::from_millis(100))
+                .await;
+            assert!(result.is_ok());
+            let job = result.unwrap();
+
+            // Get dispatch messages
+            let builder_dispatch = timeout(Duration::from_millis(100), builder_rx.recv())
+                .await
+                .expect("Should receive dispatch")
+                .unwrap();
+            assert_eq!(builder_dispatch, EjServerMessage::Build(job.clone()));
+            let job_update = timeout(Duration::from_millis(100), job_update_rx.recv())
+                .await
+                .expect("Should receive update")
+                .expect("Should have update");
+            assert_eq!(job_update, EjJobUpdate::JobStarted { nb_builders: 1 });
+
+            // Get cancel messages
+            let job_cancel = timeout(Duration::from_millis(200), job_update_rx.recv())
+                .await
+                .expect("Should receive update")
+                .expect("Should have update");
+            assert_eq!(
+                job_cancel,
+                EjJobUpdate::JobCancelled(EjJobCancelReason::Timeout)
+            );
+
+            let builder_cancel = timeout(Duration::from_millis(200), builder_rx.recv())
+                .await
+                .expect("Should receive update")
+                .expect("Should have update");
+            assert_eq!(
+                builder_cancel,
+                EjServerMessage::Cancel(EjJobCancelReason::Timeout, job.id)
+            );
+        });
     }
 }

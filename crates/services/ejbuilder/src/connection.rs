@@ -94,6 +94,7 @@ pub async fn handle_connect(
 
     let (mut write, mut read) = ws_stream.split();
 
+    // TODO: Handle job cancelling
     while let Some(message) = read.next().await {
         match message {
             Ok(Message::Text(text)) => {
@@ -164,6 +165,12 @@ pub async fn handle_connect(
                                 error!("Failed to serialize run results {}", err);
                             }
                         }
+                    }
+                    EjServerMessage::Cancel(reason, job_id) => {
+                        warn!(
+                            "Received cancel message for job {} for reason {} but we don't handle those yet",
+                            job_id, reason
+                        )
                     }
                     EjServerMessage::Close => {
                         println!("Received close command from server");
