@@ -3,7 +3,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use ej::ej_config::ej_board_config::EjBoardConfigApi;
-use ej::ej_job::api::{EjDeployableJob, EjJob, EjJobCancelReason, EjJobType, EjJobUpdate};
+use ej::ej_job::api::{
+    EjBuildResult, EjDeployableJob, EjJob, EjJobCancelReason, EjJobType, EjJobUpdate, EjRunResult,
+};
 use ej::ej_job::db::EjJobDb;
 use ej::ej_job::logs::db::EjJobLog;
 use ej::ej_job::results::api::EjJobResult;
@@ -270,15 +272,17 @@ impl DispatcherPrivate {
                 EjBoardConfigApi::try_from_board_config_db(board_config_db, connection)?;
             logs.push((config_api, logdb.log));
         }
-        DispatcherPrivate::send_job_update(
-            &job.job_update_tx,
-            EjJobUpdate::JobFinished {
-                success: jobdb.success(),
-                logs: logs,
-            },
-        )
-        .await;
-        if matches!(job.data.job_type, EjJobType::BuildAndRun) {
+
+        if job.data.job_type == EjJobType::Build {
+            DispatcherPrivate::send_job_update(
+                &job.job_update_tx,
+                EjJobUpdate::BuildFinished(EjBuildResult {
+                    success: jobdb.success(),
+                    logs,
+                }),
+            )
+            .await;
+        } else {
             let resultsdb =
                 EjJobResultDb::fetch_with_board_config_by_job_id(&jobdb.id, &connection)?;
             let mut results = Vec::new();
@@ -287,12 +291,14 @@ impl DispatcherPrivate {
                     EjBoardConfigApi::try_from_board_config_db(board_config_db, connection)?;
                 results.push((config_api, resultdb.result));
             }
+
             DispatcherPrivate::send_job_update(
                 &job.job_update_tx,
-                EjJobUpdate::RunFinished {
+                EjJobUpdate::RunFinished(EjRunResult {
+                    logs,
                     success: jobdb.success(),
                     results,
-                },
+                }),
             )
             .await;
         }
@@ -521,8 +527,8 @@ mod test {
     use diesel::r2d2::{ConnectionManager, Pool};
     use ej::ctx::ctx_client::CtxClient;
     use ej::db::config::DbConfig;
-    use ej::ej_job::api::{EjJob, EjJobType};
-    use ej::ej_job::results::api::{EjBuildResult, EjRunResult};
+    use ej::ej_job::api::{EjBuildResult, EjJob, EjJobType};
+    use ej::ej_job::results::api::{EjBuilderBuildResult, EjBuilderRunResult};
     use std::collections::HashMap;
     use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
     use std::time::Duration;
@@ -793,7 +799,7 @@ mod test {
             let update = job_rx.recv().await.expect("Should receive JobStarted");
             assert_eq!(update, EjJobUpdate::JobStarted { nb_builders: 1 });
 
-            let job_result = EjBuildResult {
+            let job_result = EjBuilderBuildResult {
                 job_id: job.id,
                 builder_id,
                 logs: HashMap::new(),
@@ -809,10 +815,10 @@ mod test {
                 .expect("Should have update");
             assert_eq!(
                 update,
-                EjJobUpdate::JobFinished {
+                EjJobUpdate::BuildFinished(EjBuildResult {
                     success: true,
                     logs: Vec::new()
-                }
+                })
             );
         })
     }
@@ -847,7 +853,7 @@ mod test {
             );
 
             for &builder_id in &builder_ids[0..2] {
-                let job_result = EjBuildResult {
+                let job_result = EjBuilderBuildResult {
                     job_id,
                     builder_id,
                     successful: true,
@@ -865,7 +871,7 @@ mod test {
             }
 
             // Complete job on last builder - should finish now
-            let job_result = EjBuildResult {
+            let job_result = EjBuilderBuildResult {
                 job_id,
                 builder_id: builder_ids[2],
                 logs: HashMap::new(),
@@ -882,10 +888,10 @@ mod test {
 
             assert_eq!(
                 update,
-                EjJobUpdate::JobFinished {
+                EjJobUpdate::BuildFinished(EjBuildResult {
                     success: true,
                     logs: Vec::new()
-                }
+                })
             );
         })
     }
@@ -929,7 +935,7 @@ mod test {
                 EjJobUpdate::JobAddedToQueue { queue_position: 0 }
             );
 
-            let job1_result = EjBuildResult {
+            let job1_result = EjBuilderBuildResult {
                 job_id: job1.id,
                 builder_id,
                 successful: true,
@@ -943,10 +949,10 @@ mod test {
 
             assert_eq!(
                 job1_finished,
-                EjJobUpdate::JobFinished {
+                EjJobUpdate::BuildFinished(EjBuildResult {
                     success: true,
                     logs: Vec::new()
-                }
+                })
             );
 
             let job2_started = timeout(Duration::from_millis(100), job2_rx.recv())
@@ -962,7 +968,7 @@ mod test {
                 .unwrap();
             assert_eq!(builder_dispatch, EjServerMessage::Build(job2.clone()));
 
-            let job2_result = EjBuildResult {
+            let job2_result = EjBuilderBuildResult {
                 job_id: job2.id.clone(),
                 builder_id,
                 successful: true,
@@ -976,10 +982,10 @@ mod test {
 
             assert_eq!(
                 job2_finished,
-                EjJobUpdate::JobFinished {
+                EjJobUpdate::BuildFinished(EjBuildResult {
                     success: true,
                     logs: Vec::new()
-                }
+                })
             );
         })
     }
@@ -1013,7 +1019,7 @@ mod test {
                 .unwrap();
             assert_eq!(builder_dispatch, EjServerMessage::BuildAndRun(job.clone()));
 
-            let job_result = EjRunResult {
+            let job_result = EjBuilderRunResult {
                 job_id: job.id,
                 builder_id,
                 successful: true,
@@ -1028,25 +1034,15 @@ mod test {
                 .await
                 .expect("Should receive JobFinished")
                 .expect("Should have update");
-            let run_finished = timeout(Duration::from_millis(100), job_rx.recv())
-                .await
-                .expect("Should receive RunFinished")
-                .expect("Should have update");
 
-            assert_eq!(
-                job_finished,
-                EjJobUpdate::JobFinished {
-                    success: true,
-                    logs: Vec::new()
-                }
-            );
             // Should also receive RunFinished for BuildAndRun jobs
             assert_eq!(
-                run_finished,
-                EjJobUpdate::RunFinished {
+                job_finished,
+                EjJobUpdate::RunFinished(EjRunResult {
                     success: true,
+                    logs: Vec::new(),
                     results: Vec::new()
-                }
+                })
             );
         })
     }
@@ -1059,7 +1055,7 @@ mod test {
             let mock_builder = create_builder(builder_id, builder_tx);
             dispatcher.builders.lock().await.push(mock_builder);
 
-            let job_result = EjBuildResult {
+            let job_result = EjBuilderBuildResult {
                 job_id: Uuid::new_v4(),
                 builder_id,
                 successful: true,

@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 use ej::ej_config::ej_config::{EjConfig, EjUserConfig};
-use ej::ej_job::results::api::{EjBuildResult, EjRunOutput, EjRunResult};
+use ej::ej_job::results::api::{EjBuilderBuildResult, EjBuilderRunResult, EjRunOutput};
 use ej::ej_message::EjServerMessage;
 use ej::prelude::*;
 use ej::web::ctx::AUTH_HEADER_PREFIX;
@@ -125,7 +125,7 @@ pub async fn handle_connect(
                         if let Err(err) = dump_logs_to_temporary_file(&output) {
                             error!("Failed to dump logs to file - {err}");
                         }
-                        let response = EjBuildResult {
+                        let response = EjBuilderBuildResult {
                             job_id: job.id,
                             builder_id: builder.id,
                             logs: output.logs,
@@ -164,7 +164,7 @@ pub async fn handle_connect(
                         if let Err(err) = dump_logs_to_temporary_file(&output) {
                             error!("Failed to dump logs to file - {err}");
                         }
-                        let response = EjRunResult {
+                        let response = EjBuilderRunResult {
                             job_id: job.id,
                             builder_id: builder.id,
                             logs: output.logs,

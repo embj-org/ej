@@ -9,6 +9,7 @@ authors.workspace = true
 ej = { path = "../../libs/lib-core" }
 lib-io = { path = "../../libs/lib-io" }
 lib-requests = { path = "../../libs/lib-requests" }
+lib-dispatcher-sdk = { path = "../../libs/lib-dispatcher-sdk" }
 clap = { version = "4.5", features = ["derive"] }
 tokio = { version = "1.44.2", features = ["macros", "rt-multi-thread"] }
 reqwest = { version = "0.12", features = ["json", "cookies"] }

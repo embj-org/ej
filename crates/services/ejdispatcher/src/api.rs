@@ -15,7 +15,7 @@ use ej::{
     ej_config::ej_config::{EjConfig, EjUserConfig},
     ej_job::{
         api::{EjDeployableJob, EjJob},
-        results::api::{EjBuildResult, EjJobResult, EjRunResult},
+        results::api::{EjBuilderBuildResult, EjBuilderRunResult, EjJobResult},
     },
     ej_message::{EjClientMessage, EjServerMessage},
     require_permission,
@@ -52,9 +52,12 @@ pub async fn setup_api(dispatcher: Dispatcher) -> Result<JoinHandle<Result<()>>>
         .route(&v1("builder/config"), post(push_config))
         .route(
             &v1("builder/build_result"),
-            post(job_result::<EjBuildResult>),
+            post(job_result::<EjBuilderBuildResult>),
         )
-        .route(&v1("builder/run_result"), post(job_result::<EjRunResult>))
+        .route(
+            &v1("builder/run_result"),
+            post(job_result::<EjBuilderRunResult>),
+        )
         .route_layer(require_permission!("builder"))
         .route_layer(middleware::from_fn(mw_require_auth));
 

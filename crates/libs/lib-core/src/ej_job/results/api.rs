@@ -25,10 +25,10 @@ pub struct EjRunOutput<'a> {
     pub results: HashMap<Uuid, String>,
 }
 
-type EjBoardConfigId = Uuid;
+pub type EjBoardConfigId = Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct EjBuildResult {
+pub struct EjBuilderBuildResult {
     pub job_id: Uuid,
     pub builder_id: Uuid,
     pub logs: HashMap<EjBoardConfigId, Vec<String>>,
@@ -36,7 +36,7 @@ pub struct EjBuildResult {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct EjRunResult {
+pub struct EjBuilderRunResult {
     pub job_id: Uuid,
     pub builder_id: Uuid,
     pub logs: HashMap<EjBoardConfigId, Vec<String>>,
@@ -57,7 +57,7 @@ impl<'a> EjRunOutput<'a> {
         self.results.clear();
     }
 }
-impl EjJobResult for EjBuildResult {
+impl EjJobResult for EjBuilderBuildResult {
     fn save(self, connection: &mut DbConnection) -> Result<()> {
         let job = EjJobDb::fetch_by_id(&self.job_id, connection)?;
         let job_type: EjJobType = job.fetch_type(connection)?.into();
@@ -92,7 +92,7 @@ impl EjJobResult for EjBuildResult {
     }
 }
 
-impl EjJobResult for EjRunResult {
+impl EjJobResult for EjBuilderRunResult {
     fn save(self, connection: &mut DbConnection) -> Result<()> {
         let job = EjJobDb::fetch_by_id(&self.job_id, connection)?;
 

@@ -38,21 +38,24 @@ pub enum EjJobCancelReason {
 }
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EjJobUpdate {
-    JobStarted {
-        nb_builders: usize,
-    },
+    JobStarted { nb_builders: usize },
     JobCancelled(EjJobCancelReason),
-    JobAddedToQueue {
-        queue_position: usize,
-    },
-    JobFinished {
-        success: bool,
-        logs: Vec<(EjBoardConfigApi, String)>,
-    },
-    RunFinished {
-        success: bool,
-        results: Vec<(EjBoardConfigApi, String)>,
-    },
+    JobAddedToQueue { queue_position: usize },
+    BuildFinished(EjBuildResult),
+    RunFinished(EjRunResult),
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EjBuildResult {
+    pub logs: Vec<(EjBoardConfigApi, String)>,
+    pub success: bool,
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EjRunResult {
+    pub logs: Vec<(EjBoardConfigApi, String)>,
+    pub results: Vec<(EjBoardConfigApi, String)>,
+    pub success: bool,
 }
 
 impl EjJob {
@@ -109,58 +112,82 @@ impl fmt::Display for EjJobUpdate {
             EjJobUpdate::JobAddedToQueue { queue_position } => {
                 write!(f, "Job added to queue at position {}", queue_position)
             }
-            EjJobUpdate::JobFinished { success, logs } => {
-                let status = if *success {
-                    "successfully"
-                } else {
-                    "with failures"
-                };
-                writeln!(f, "\n=======================================")?;
-                writeln!(
-                    f,
-                    "Job finished {} with {} log entries:",
-                    status,
-                    logs.len()
-                )?;
-                for (board, log) in logs {
-                    writeln!(f, "=======================================")?;
-                    writeln!(f, "{}", board)?;
-                    writeln!(f, "=======================================")?;
-                    writeln!(f, "{}", log)?;
-                }
-                writeln!(f, "=======================================")?;
-                Ok(())
+            EjJobUpdate::BuildFinished(result) => {
+                write!(f, "{}", result)
             }
-            EjJobUpdate::RunFinished { success, results } => {
-                let status = if *success {
-                    "successfully"
-                } else {
-                    "with failures"
-                };
-                writeln!(f, "\n=======================================")?;
-                writeln!(
-                    f,
-                    "Run finished {} with {} result entries:",
-                    status,
-                    results.len()
-                )?;
-                for (board, result) in results {
-                    writeln!(f, "=======================================")?;
-                    writeln!(f, "{}", board)?;
-                    writeln!(f, "=======================================")?;
-                    writeln!(f, "{}", result)?;
-                }
-                writeln!(f, "=======================================")?;
-                Ok(())
+            EjJobUpdate::RunFinished(result) => {
+                write!(f, "{}", result)
             }
         }
     }
 }
+
 impl fmt::Display for EjJobCancelReason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             EjJobCancelReason::NoBuilders => write!(f, "no builders"),
             EjJobCancelReason::Timeout => write!(f, "job timed out"),
         }
+    }
+}
+impl fmt::Display for EjBuildResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let status = if self.success {
+            "successfully"
+        } else {
+            "with failures"
+        };
+        writeln!(f, "\n=======================================")?;
+        writeln!(
+            f,
+            "Build finished {} with {} log entries:",
+            status,
+            self.logs.len()
+        )?;
+        for (board, log) in self.logs.iter() {
+            writeln!(f, "=======================================")?;
+            writeln!(f, "{}", board)?;
+            writeln!(f, "=======================================")?;
+            writeln!(f, "{}", log)?;
+        }
+        writeln!(f, "=======================================")
+    }
+}
+
+impl fmt::Display for EjRunResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let status = if self.success {
+            "successfully"
+        } else {
+            "with failures"
+        };
+        writeln!(f, "\n=======================================")?;
+        writeln!(
+            f,
+            "Run finished {} with {} log entries:",
+            status,
+            self.logs.len()
+        )?;
+        for (board, log) in self.logs.iter() {
+            writeln!(f, "=======================================")?;
+            writeln!(f, "{}", board)?;
+            writeln!(f, "=======================================")?;
+            writeln!(f, "{}", log)?;
+        }
+        writeln!(f, "=======================================")?;
+        writeln!(f, "\n=======================================")?;
+        writeln!(
+            f,
+            "Run finished {} with {} result entries:",
+            status,
+            self.results.len()
+        )?;
+        for (board, result) in self.results.iter() {
+            writeln!(f, "=======================================")?;
+            writeln!(f, "{}", board)?;
+            writeln!(f, "=======================================")?;
+            writeln!(f, "{}", result)?;
+        }
+        writeln!(f, "=======================================")
     }
 }

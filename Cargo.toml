@@ -8,6 +8,7 @@ members = [
 	"crates/libs/lib-core",
 	"crates/libs/lib-io",
 	"crates/libs/lib-requests",
+	"crates/libs/lib-dispatcher-sdk",
 
 	# Services
 	"crates/services/ejdispatcher",

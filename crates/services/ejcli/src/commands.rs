@@ -5,8 +5,10 @@ use ej::{
     ej_message::{EjSocketClientMessage, EjSocketServerMessage},
     prelude::*,
 };
+use lib_dispatcher_sdk::build::dispatch_build;
+use lib_dispatcher_sdk::run::dispatch_run;
 use lib_requests::ApiClient;
-use std::{path::PathBuf, time::Duration};
+use std::{collections::HashMap, path::PathBuf, time::Duration};
 use tokio::{
     io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
     net::UnixStream,
@@ -20,39 +22,28 @@ pub async fn handle_dispatch(
     job_type: EjJobType,
 ) -> Result<()> {
     println!("Dispatching job");
-    let mut stream = UnixStream::connect(socket_path).await?;
 
-    let job = EjJob {
-        job_type: job_type,
-        commit_hash: dispatch.commit_hash,
-        remote_url: dispatch.remote_url,
-        remote_token: dispatch.remote_token,
-    };
-    let message = EjSocketClientMessage::Dispatch {
-        job,
-        timeout: Duration::from_secs(dispatch.seconds),
-    };
-
-    let payload = serde_json::to_string(&message)?;
-    stream.write_all(payload.as_bytes()).await;
-    stream.write_all(b"\n").await;
-    stream.flush().await;
-    let mut reader = BufReader::new(stream);
-    let mut lines = reader.lines();
-
-    while let Some(line) = lines.next_line().await? {
-        match serde_json::from_str::<EjSocketServerMessage>(&line) {
-            Ok(message) => {
-                println!("{}", message);
-            }
-            Err(e) => {
-                eprintln!("Failed to parse message: {}", e);
-                eprintln!("Raw message: {}", line);
-            }
-        }
+    if job_type == EjJobType::Build {
+        let build_result = dispatch_build(
+            socket_path,
+            dispatch.commit_hash,
+            dispatch.remote_url,
+            dispatch.remote_token,
+            Duration::from_secs(dispatch.seconds),
+        )
+        .await?;
+        println!("Received Build Result {}", build_result);
+    } else {
+        let run_result = dispatch_run(
+            socket_path,
+            dispatch.commit_hash,
+            dispatch.remote_url,
+            dispatch.remote_token,
+            Duration::from_secs(dispatch.seconds),
+        )
+        .await?;
+        println!("Received Run Result {}", run_result);
     }
-
-    println!("Connection closed by server");
     Ok(())
 }
 pub async fn handle_create_root_user(socket_path: &PathBuf, args: UserArgs) -> Result<()> {
