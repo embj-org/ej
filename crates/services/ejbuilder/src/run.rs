@@ -73,7 +73,7 @@ fn run_all_configs(
     let mut outputs = HashMap::new();
     for board_config in board.configs.iter() {
         let (tx, rx) = channel();
-        let runner = Runner::new(board_config.run_script.clone(), Vec::new());
+        let runner = Runner::new_without_args(board_config.run_script.clone());
         let stop = stop.clone();
         let join_handler = thread::spawn(move || runner.run(tx, stop));
 
@@ -99,7 +99,7 @@ fn run_all_configs(
         }
         match join_handler.join() {
             Ok(exit_status) => {
-                if let Ok(exit_status) = exit_status {
+                if let Some(exit_status) = exit_status {
                     if !exit_status.success() {
                         error!("Process exited with {exit_status}");
                         continue;

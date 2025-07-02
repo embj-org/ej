@@ -3,11 +3,11 @@ use std::{
     thread,
 };
 
+use ej::prelude::*;
 use ej::{ej_config::ej_config::EjConfig, ej_job::results::api::EjRunOutput};
 use lib_io::runner::{RunEvent, Runner};
-
-use ej::prelude::*;
 use tracing::{error, info};
+
 pub fn build(config: &EjConfig, output: &mut EjRunOutput) -> Result<()> {
     let board_count = config.boards.len();
     for (board_idx, board) in config.boards.iter().enumerate() {
@@ -16,7 +16,7 @@ pub fn build(config: &EjConfig, output: &mut EjRunOutput) -> Result<()> {
             let (tx, rx) = mpsc::channel();
             let should_stop = Arc::new(AtomicBool::new(false));
             info!("Config {}: {}", config_idx + 1, board_config.name);
-            let runner = Runner::new(board_config.build_script.clone(), Vec::new());
+            let runner = Runner::new_without_args(board_config.build_script.clone());
             let handler = thread::spawn(move || runner.run(tx, should_stop));
 
             while let Ok(event) = rx.recv() {
@@ -56,7 +56,7 @@ pub fn build(config: &EjConfig, output: &mut EjRunOutput) -> Result<()> {
             let exit_status = handler
                 .join()
                 .map_err(|err| Error::Generic(format!("Error joining build thread {:?}", err)))?
-                .map_err(|_| Error::Generic(format!("Error joining build thread")))?;
+                .ok_or(Error::Generic(format!("Error joining build thread")))?;
 
             if !exit_status.success() {
                 error!("Build exit status {}", exit_status);

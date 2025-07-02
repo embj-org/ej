@@ -1,6 +1,6 @@
 use ej::ej_config::ej_config::{EjConfig, EjUserConfig};
 use ej::ej_job::results::api::EjRunOutput;
-use std::io::{stderr, stdout};
+use std::io::stdout;
 use std::path::PathBuf;
 
 use crate::build::build;
@@ -42,18 +42,10 @@ pub fn handle_run_and_build(config_path: &PathBuf) -> Result<()> {
     let config = EjConfig::from_config(config);
     let mut output = EjRunOutput::new(&config);
     let result = build(&config, &mut output);
-    if result.is_ok() {
-        dump_logs(&output, stdout())?;
-    } else {
-        dump_logs(&output, stderr())?;
-    }
+    dump_logs(&output, stdout())?;
     result?;
     let result = run(&config, &mut output);
-    if result.is_ok() {
-        dump_logs(&output, stdout())?;
-    } else {
-        dump_logs(&output, stderr())?;
-    }
+    dump_logs(&output, stdout())?;
     result?;
     Ok(())
 }

@@ -1,5 +1,5 @@
 use std::{
-    io::{BufRead, BufReader, Read},
+    io::{self, BufRead, BufReader, Read},
     process::ExitStatus,
     sync::{
         Arc,
@@ -28,8 +28,18 @@ pub struct Runner {
 }
 
 impl Runner {
-    pub fn new(command: String, args: Vec<String>) -> Self {
-        Self { command, args }
+    pub fn new(command: impl Into<String>, args: Vec<impl Into<String>>) -> Self {
+        Self {
+            command: command.into(),
+            args: args.into_iter().map(|a| a.into()).collect(),
+        }
+    }
+
+    pub fn new_without_args(command: impl Into<String>) -> Self {
+        Self {
+            command: command.into(),
+            args: Vec::new(),
+        }
     }
     pub fn get_full_command(&self) -> String {
         format!("{} {}", &self.command, &self.args.join(" "))
@@ -57,14 +67,12 @@ impl Runner {
     // Starts the process and monitors its events
     // It will read stdout and stderr until the child process finishes
     // See `RunEvent` to see what events this function produces
-    pub fn run(
-        &self,
-        tx: Sender<RunEvent>,
-        should_stop: Arc<AtomicBool>,
-    ) -> Result<ExitStatus, ()> {
-        let mut process = spawn_process(&self.command, self.args.clone()).map_err(|err| {
-            let _ = tx.send(RunEvent::ProcessCreationFailed(format!("{:?}", err)));
-        })?;
+    pub fn run(&self, tx: Sender<RunEvent>, should_stop: Arc<AtomicBool>) -> Option<ExitStatus> {
+        let mut process = spawn_process(&self.command, self.args.clone())
+            .map_err(|err| {
+                let _ = tx.send(RunEvent::ProcessCreationFailed(format!("{:?}", err)));
+            })
+            .ok()?;
 
         let _ = tx.send(RunEvent::ProcessCreated);
 
@@ -117,7 +125,7 @@ impl Runner {
         };
 
         let _ = tx.send(RunEvent::ProcessEnd(success));
-        exit_status.ok_or(())
+        exit_status
     }
 }
 
@@ -145,8 +153,8 @@ mod test {
     fn launch_program(
         target: &str,
         stop: Arc<AtomicBool>,
-    ) -> (JoinHandle<Result<ExitStatus, ()>>, Receiver<RunEvent>) {
-        let runner = Runner::new(target.to_string(), vec![]);
+    ) -> (JoinHandle<Option<ExitStatus>>, Receiver<RunEvent>) {
+        let runner = Runner::new_without_args(target.to_string());
 
         let (tx, rx) = channel();
         let thread_stop = stop.clone();
@@ -154,7 +162,7 @@ mod test {
         (
             thread::spawn(move || {
                 let exit = runner.run(tx, thread_stop);
-                assert!(exit.is_ok());
+                assert!(exit.is_some());
                 exit
             }),
             rx,

@@ -23,15 +23,12 @@ pub enum ProcessStatus {
 /// Launches a sub process `cmd` using `args`
 /// Stdout and stderr are piped and can then be retrieved using the Child returned
 /// eg: child.stdout.take() and child.stderr.take()
-pub fn spawn_process(cmd: &str, args: Vec<String>) -> Result<Child, ProcessError> {
-    let child = Command::new(OsStr::new(&cmd))
+pub fn spawn_process(cmd: &str, args: Vec<String>) -> Result<Child, io::Error> {
+    Command::new(OsStr::new(&cmd))
         .args(args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|err| ProcessError::SpawnProcessFail(err))?;
-
-    Ok(child)
 }
 /// Polls the process status without blocking
 /// Can be called in a loop as it will handling sleep so it doesn't use 100% of the cpu

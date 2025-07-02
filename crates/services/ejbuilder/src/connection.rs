@@ -16,6 +16,7 @@ use tracing::{debug, error, info, trace, warn};
 use uuid::Uuid;
 
 use crate::build::build;
+use crate::checkout::checkout_all;
 use crate::logs::dump_logs_to_temporary_file;
 use crate::run::run;
 
@@ -111,7 +112,16 @@ pub async fn handle_connect(
                 match server_message {
                     EjServerMessage::Build(job) => {
                         let mut output = EjRunOutput::new(&config);
-                        let result = build(&config, &mut output);
+                        let mut result = checkout_all(
+                            &config,
+                            &job.commit_hash,
+                            &job.remote_url,
+                            job.remote_token,
+                            &mut output,
+                        );
+                        if result.is_ok() {
+                            result = build(&config, &mut output);
+                        }
                         if let Err(err) = dump_logs_to_temporary_file(&output) {
                             error!("Failed to dump logs to file - {err}");
                         }
@@ -138,12 +148,21 @@ pub async fn handle_connect(
                     }
                     EjServerMessage::BuildAndRun(job) => {
                         let mut output = EjRunOutput::new(&config);
-                        let mut result = build(&config, &mut output);
-                        if let Err(err) = dump_logs_to_temporary_file(&output) {
-                            error!("Failed to dump logs to file - {err}");
+                        let mut result = checkout_all(
+                            &config,
+                            &job.commit_hash,
+                            &job.remote_url,
+                            job.remote_token,
+                            &mut output,
+                        );
+                        if result.is_ok() {
+                            result = build(&config, &mut output);
                         }
                         if result.is_ok() {
                             result = run(&config, &mut output);
+                        }
+                        if let Err(err) = dump_logs_to_temporary_file(&output) {
+                            error!("Failed to dump logs to file - {err}");
                         }
                         let response = EjRunResult {
                             job_id: job.id,

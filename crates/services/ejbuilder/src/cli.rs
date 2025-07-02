@@ -27,6 +27,20 @@ pub enum Commands {
     Parse,
     /// Parse and run every configuration
     Validate,
+
+    Checkout {
+        /// Git commit hash
+        #[arg(long)]
+        commit_hash: String,
+
+        /// Git remote url
+        #[arg(long)]
+        remote_url: String,
+
+        /// Optional git remote token
+        #[arg(long)]
+        remote_token: Option<String>,
+    },
     /// Run the builder and connect to the server via websockets
     Connect {
         /// Server URL to connect to
