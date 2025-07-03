@@ -13,8 +13,12 @@ use uuid::Uuid;
 use crate::builder::Builder;
 use crate::common::{SpawnRunnerArgs, spawn_runner};
 
-pub fn run(builder: &Builder, config: &EjConfig, output: &mut EjRunOutput) -> Result<()> {
-    let stop = Arc::new(AtomicBool::new(false));
+pub fn run(
+    builder: &Builder,
+    config: &EjConfig,
+    output: &mut EjRunOutput,
+    stop: Arc<AtomicBool>,
+) -> Result<()> {
     let mut join_handlers = Vec::new();
     for board in config.boards.iter() {
         let board = board.clone();

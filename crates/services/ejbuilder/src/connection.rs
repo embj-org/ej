@@ -1,5 +1,6 @@
 use std::str::FromStr;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use ej::ej_config::ej_config::EjConfig;
@@ -100,7 +101,7 @@ pub async fn handle_connect(
 
     let (mut write, mut read) = ws_stream.split();
 
-    let mut current_job: Option<(Uuid, JoinHandle<()>)> = None;
+    let mut current_job: Option<(Uuid, JoinHandle<()>, Arc<AtomicBool>)> = None;
     let config = Arc::new(config);
     let builder = Arc::new(builder);
     let client = Arc::new(client);
@@ -130,12 +131,15 @@ pub async fn handle_connect(
                             warn!(
                                 "Received a new build request while a job is happening. Cancelling it"
                             );
-                            cancel_job(&builder, &job.0, job.1, EjJobCancelReason::Timeout).await;
+                            cancel_job(&builder, &job.0, job.1, job.2, EjJobCancelReason::Timeout)
+                                .await;
                         }
 
                         let config = Arc::clone(&config);
                         let builder = Arc::clone(&builder);
                         let client = Arc::clone(&client);
+                        let stop = Arc::new(AtomicBool::new(false));
+                        let t_stop = Arc::clone(&stop);
 
                         let handle = tokio::spawn(async move {
                             let mut output = EjRunOutput::new(&config);
@@ -147,7 +151,7 @@ pub async fn handle_connect(
                                 &mut output,
                             );
                             if result.is_ok() {
-                                result = build(&builder, &config, &mut output);
+                                result = build(&builder, &config, &mut output, t_stop);
                             }
                             if let Err(err) = dump_logs_to_temporary_file(&output) {
                                 error!("Failed to dump logs to file - {err}");
@@ -178,18 +182,21 @@ pub async fn handle_connect(
                                 }
                             };
                         });
-                        current_job = Some((job.id.clone(), handle));
+                        current_job = Some((job.id.clone(), handle, stop));
                     }
                     EjServerMessage::BuildAndRun(job) => {
                         if let Some(job) = current_job.take() {
                             warn!(
                                 "Received a new build request while a job is happening. Cancelling it"
                             );
-                            cancel_job(&builder, &job.0, job.1, EjJobCancelReason::Timeout).await;
+                            cancel_job(&builder, &job.0, job.1, job.2, EjJobCancelReason::Timeout)
+                                .await;
                         }
                         let config = Arc::clone(&config);
                         let builder = Arc::clone(&builder);
                         let client = Arc::clone(&client);
+                        let stop = Arc::new(AtomicBool::new(false));
+                        let t_stop = Arc::clone(&stop);
                         let handle = tokio::spawn(async move {
                             let mut output = EjRunOutput::new(&config);
                             let mut result = checkout_all(
@@ -200,10 +207,10 @@ pub async fn handle_connect(
                                 &mut output,
                             );
                             if result.is_ok() {
-                                result = build(&builder, &config, &mut output);
+                                result = build(&builder, &config, &mut output, Arc::clone(&t_stop));
                             }
                             if result.is_ok() {
-                                result = run(&builder, &config, &mut output);
+                                result = run(&builder, &config, &mut output, t_stop);
                             }
                             if let Err(err) = dump_logs_to_temporary_file(&output) {
                                 error!("Failed to dump logs to file - {err}");
@@ -231,12 +238,13 @@ pub async fn handle_connect(
                                 }
                             }
                         });
-                        current_job = Some((job.id.clone(), handle));
+                        current_job = Some((job.id.clone(), handle, stop));
                     }
                     EjServerMessage::Cancel(reason, job_id) => {
                         if let Some(curr_job) = current_job.take() {
                             if curr_job.0 == job_id {
-                                cancel_job(&builder, &curr_job.0, curr_job.1, reason).await;
+                                cancel_job(&builder, &curr_job.0, curr_job.1, curr_job.2, reason)
+                                    .await;
                             } else {
                                 warn!(
                                     "Received cancel request for a job different than the one in progress. "
@@ -285,13 +293,17 @@ async fn cancel_job(
     builder: &Builder,
     job_id: &Uuid,
     mut handle: JoinHandle<()>,
+    stop: Arc<AtomicBool>,
     reason: EjJobCancelReason,
 ) {
     info!("Cancelling {job_id} - Reason: {reason}");
+
+    // This sends a message to the child process to exit
     if let Err(err) = builder.tx.send(BuilderEvent::Exit).await {
         error!("Failed to send exit request to builder task - {err}");
     }
 
+    // Ideally, the child process finishes its execution by itself and its task handler will finish
     let timeout_result = timeout(Duration::from_secs(60), &mut handle).await;
 
     match timeout_result {
@@ -299,16 +311,30 @@ async fn cancel_job(
             info!("Job {job_id} completed gracefully");
         }
         Ok(Err(join_err)) => {
-            error!("Job {job_id} finished with error: {join_err}");
+            warn!("Task handling {job_id} finished with error: {join_err}");
         }
         Err(_timeout) => {
-            warn!("Job {job_id} did not complete within timeout, forcing abort");
-            handle.abort();
-            if let Err(join_err) = handle.await {
-                if join_err.is_cancelled() {
-                    info!("Job {job_id} was successfully aborted");
-                } else {
-                    error!("Job {job_id} abort failed: {join_err}");
+            error!(
+                "Process taking care of {job_id} did not complete within timeout, forcing it to exit. \
+                This can cause problems in future runs. \
+                EJ recommends using its builder sdk to handle these cases for you. \
+                If you're already using it, make sure you handle the exit message correctly"
+            );
+            stop.store(true, Ordering::Relaxed);
+            let timeout_result = timeout(Duration::from_secs(30), &mut handle).await;
+
+            match timeout_result {
+                Ok(result) => {
+                    info!("Task handling process finished {:?}", result);
+                }
+                Err(_timeout) => {
+                    warn!(
+                        "Even after force stopping the process, the task handling it didn't complete in time. Aborting. \
+                        This may mean a task will be left in zombie state"
+                    );
+                    handle.abort();
+                    let result = handle.await;
+                    info!("Task result after aborting {:?}", result);
                 }
             }
         }

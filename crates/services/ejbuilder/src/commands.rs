@@ -1,5 +1,7 @@
 use ej::ej_job::results::api::EjRunOutput;
 use std::io::stdout;
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 use crate::build::build;
 use crate::builder::Builder;
@@ -37,10 +39,11 @@ pub fn handle_run_and_build(builder: &Builder) -> Result<()> {
 
     let config = &builder.config;
     let mut output = EjRunOutput::new(&config);
-    let result = build(builder, &config, &mut output);
+    let stop = Arc::new(AtomicBool::new(false));
+    let result = build(builder, &config, &mut output, Arc::clone(&stop));
     dump_logs(&output, stdout())?;
     result?;
-    let result = run(builder, &config, &mut output);
+    let result = run(builder, &config, &mut output, Arc::clone(&stop));
     dump_logs(&output, stdout())?;
     result?;
     Ok(())

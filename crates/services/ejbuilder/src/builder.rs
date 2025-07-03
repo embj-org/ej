@@ -1,4 +1,4 @@
-use ej::{db::connection, ej_config::ej_config::EjUserConfig, prelude::*};
+use ej::{ej_config::ej_config::EjUserConfig, prelude::*};
 use futures_util::lock::Mutex;
 use serde::{Deserialize, Serialize};
 use std::{

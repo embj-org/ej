@@ -8,14 +8,18 @@ use tracing::{error, info};
 use crate::common::SpawnRunnerArgs;
 use crate::{builder::Builder, common::spawn_runner};
 
-pub fn build(builder: &Builder, config: &EjConfig, output: &mut EjRunOutput) -> Result<()> {
+pub fn build(
+    builder: &Builder,
+    config: &EjConfig,
+    output: &mut EjRunOutput,
+    stop: Arc<AtomicBool>,
+) -> Result<()> {
     let board_count = config.boards.len();
 
     for (board_idx, board) in config.boards.iter().enumerate() {
         info!("Board {}/{}: {}", board_idx + 1, board_count, board.name);
         for (config_idx, board_config) in board.configs.iter().enumerate() {
             let (tx, rx) = mpsc::channel();
-            let should_stop = Arc::new(AtomicBool::new(false));
             info!("Config {}: {}", config_idx + 1, board_config.name);
 
             let args = SpawnRunnerArgs {
@@ -24,7 +28,8 @@ pub fn build(builder: &Builder, config: &EjConfig, output: &mut EjRunOutput) -> 
                 config_path: builder.config_path.clone(),
                 socket_path: builder.socket_path.clone(),
             };
-            let handle = spawn_runner(args, tx, should_stop);
+            let stop = Arc::clone(&stop);
+            let handle = spawn_runner(args, tx, stop);
 
             while let Ok(event) = rx.recv() {
                 match event {
