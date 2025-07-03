@@ -1,7 +1,7 @@
 use ej::ej_config::ej_config::EjConfig;
 use ej::prelude::*;
 use ej::{ej_config::ej_board::EjBoard, ej_job::results::api::EjRunOutput};
-use lib_io::runner::{RunEvent, Runner};
+use lib_io::runner::RunEvent;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
@@ -10,14 +10,23 @@ use std::thread;
 use tracing::{error, info};
 use uuid::Uuid;
 
-pub fn run(config: &EjConfig, output: &mut EjRunOutput) -> Result<()> {
-    let stop = Arc::new(AtomicBool::new(false));
+use crate::builder::Builder;
+use crate::common::{SpawnRunnerArgs, spawn_runner};
 
+pub fn run(builder: &Builder, config: &EjConfig, output: &mut EjRunOutput) -> Result<()> {
+    let stop = Arc::new(AtomicBool::new(false));
     let mut join_handlers = Vec::new();
     for board in config.boards.iter() {
         let board = board.clone();
         let stop = stop.clone();
-        join_handlers.push(thread::spawn(move || run_all_configs(&board, stop)));
+
+        let args = SpawnRunnerArgs {
+            script_name: String::new(),
+            config_name: String::new(),
+            config_path: builder.config_path.clone(),
+            socket_path: builder.socket_path.clone(),
+        };
+        join_handlers.push(thread::spawn(move || run_all_configs(args, &board, stop)));
     }
 
     for (i, handler) in join_handlers.into_iter().enumerate() {
@@ -67,15 +76,17 @@ pub fn run(config: &EjConfig, output: &mut EjRunOutput) -> Result<()> {
 }
 
 fn run_all_configs(
+    mut args: SpawnRunnerArgs,
     board: &EjBoard,
     stop: Arc<AtomicBool>,
 ) -> HashMap<Uuid, (Vec<String>, Option<String>)> {
     let mut outputs = HashMap::new();
     for board_config in board.configs.iter() {
         let (tx, rx) = channel();
-        let runner = Runner::new_without_args(board_config.run_script.clone());
-        let stop = stop.clone();
-        let join_handler = thread::spawn(move || runner.run(tx, stop));
+
+        args.script_name = board_config.build_script.clone();
+        args.config_name = board_config.name.clone();
+        let handle = spawn_runner(args.clone(), tx, Arc::clone(&stop));
 
         outputs.insert(board_config.id, (Vec::new(), None));
 
@@ -97,7 +108,7 @@ fn run_all_configs(
                 }
             }
         }
-        match join_handler.join() {
+        match handle.join() {
             Ok(exit_status) => {
                 if let Some(exit_status) = exit_status {
                     if !exit_status.success() {

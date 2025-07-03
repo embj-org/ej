@@ -1,8 +1,5 @@
 use ej::{
-    ej_config::{
-        ej_board_config::EjBoardConfig,
-        ej_config::{EjConfig, EjUserConfig},
-    },
+    ej_config::{ej_board_config::EjBoardConfig, ej_config::EjConfig},
     ej_job::results::api::EjRunOutput,
     prelude::*,
 };
@@ -10,13 +7,12 @@ use lib_io::runner::{RunEvent, Runner};
 use std::{
     collections::HashMap,
     io::stdout,
-    path::Path,
     sync::{Arc, atomic::AtomicBool, mpsc::channel},
 };
 use tracing::{error, info};
 use uuid::Uuid;
 
-use crate::logs::dump_logs;
+use crate::{builder::Builder, logs::dump_logs};
 
 fn build_remote_url(remote_url: &str, remote_token: Option<String>) -> String {
     if remote_token.is_none() || remote_url.starts_with("git@") {
@@ -153,15 +149,14 @@ pub fn checkout_all(
     Ok(())
 }
 pub fn handle_checkout(
-    config_path: &Path,
+    builder: &Builder,
     commit_hash: String,
     remote_url: String,
     remote_token: Option<String>,
 ) -> Result<()> {
-    let config = EjConfig::from_config(EjUserConfig::from_file(config_path)?);
-    let mut output = EjRunOutput::new(&config);
+    let mut output = EjRunOutput::new(&builder.config);
     let result = checkout_all(
-        &config,
+        &builder.config,
         &commit_hash,
         &remote_url,
         remote_token,

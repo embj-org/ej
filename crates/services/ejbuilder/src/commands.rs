@@ -1,17 +1,14 @@
-use ej::ej_config::ej_config::{EjConfig, EjUserConfig};
 use ej::ej_job::results::api::EjRunOutput;
 use std::io::stdout;
-use std::path::PathBuf;
 
 use crate::build::build;
+use crate::builder::Builder;
 use crate::logs::dump_logs;
 use crate::run::run;
 use ej::prelude::*;
 
-pub fn handle_parse(config_path: &PathBuf) -> Result<()> {
-    println!("Parsing configuration file: {:?}", config_path);
-
-    let config = EjUserConfig::from_file(config_path)?;
+pub fn handle_parse(builder: &Builder) -> Result<()> {
+    let config = &builder.config;
 
     println!("Configuration parsed successfully");
     println!("Global version: {}", config.global.version);
@@ -35,16 +32,15 @@ pub fn handle_parse(config_path: &PathBuf) -> Result<()> {
     Ok(())
 }
 
-pub fn handle_run_and_build(config_path: &PathBuf) -> Result<()> {
-    println!("Validating configuration file: {:?}", config_path);
+pub fn handle_run_and_build(builder: &Builder) -> Result<()> {
+    println!("Validating configuration file: {:?}", builder.config_path);
 
-    let config = EjUserConfig::from_file(config_path)?;
-    let config = EjConfig::from_config(config);
+    let config = &builder.config;
     let mut output = EjRunOutput::new(&config);
-    let result = build(&config, &mut output);
+    let result = build(builder, &config, &mut output);
     dump_logs(&output, stdout())?;
     result?;
-    let result = run(&config, &mut output);
+    let result = run(builder, &config, &mut output);
     dump_logs(&output, stdout())?;
     result?;
     Ok(())

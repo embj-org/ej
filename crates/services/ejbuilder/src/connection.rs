@@ -1,7 +1,9 @@
-use std::path::PathBuf;
 use std::str::FromStr;
+use std::sync::Arc;
+use std::time::Duration;
 
-use ej::ej_config::ej_config::{EjConfig, EjUserConfig};
+use ej::ej_config::ej_config::EjConfig;
+use ej::ej_job::api::EjJobCancelReason;
 use ej::ej_job::results::api::{EjBuilderBuildResult, EjBuilderRunResult, EjRunOutput};
 use ej::ej_message::EjServerMessage;
 use ej::prelude::*;
@@ -9,6 +11,8 @@ use ej::web::ctx::AUTH_HEADER_PREFIX;
 use ej::{ej_builder::api::EjBuilderApi, web::ctx::AUTH_HEADER};
 use futures_util::{SinkExt, StreamExt};
 use lib_requests::ApiClient;
+use tokio::task::JoinHandle;
+use tokio::time::timeout;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
@@ -16,20 +20,21 @@ use tracing::{debug, error, info, trace, warn};
 use uuid::Uuid;
 
 use crate::build::build;
+use crate::builder::{Builder, BuilderEvent};
 use crate::checkout::checkout_all;
 use crate::logs::dump_logs_to_temporary_file;
 use crate::run::run;
 
 pub async fn handle_connect(
-    config_path: &PathBuf,
+    builder: Builder,
     server_url: &str,
     id: Option<String>,
     token: Option<String>,
 ) -> Result<()> {
-    info!("Starting builder with config: {:?}", config_path);
+    info!("Starting builder with config: {:?}", builder.config_path);
 
     info!("Connecting to server: {}", server_url);
-    let config = EjUserConfig::from_file(config_path)?;
+    let config = &builder.config;
 
     let id = Uuid::from_str(&id.or_else(|| std::env::var("EJB_ID").ok()).ok_or_else(|| {
         Error::Generic(String::from(
@@ -47,18 +52,18 @@ pub async fn handle_connect(
         })?;
 
     let client = ApiClient::new(server_url);
-    let builder = EjBuilderApi {
+    let builder_api = EjBuilderApi {
         id,
         token: auth_token.clone(),
     };
 
-    let body = serde_json::to_string(&builder)?;
-    let builder: EjBuilderApi = client
+    let body = serde_json::to_string(&builder_api)?;
+    let builder_api: EjBuilderApi = client
         .post_and_deserialize("v1/builder/login", body)
         .await
         .expect("Failed to login");
 
-    info!("Successfully logged in as builder {}", builder.id);
+    info!("Successfully logged in as builder {}", builder_api.id);
     let body = serde_json::to_string(&config)?;
     let config: EjConfig = client
         .post_and_deserialize("v1/builder/config", body)
@@ -82,7 +87,7 @@ pub async fn handle_connect(
 
     request.headers_mut().insert(
         AUTH_HEADER,
-        format!("{}{}", AUTH_HEADER_PREFIX, builder.token)
+        format!("{}{}", AUTH_HEADER_PREFIX, builder_api.token)
             .parse()
             .unwrap(),
     );
@@ -95,8 +100,18 @@ pub async fn handle_connect(
 
     let (mut write, mut read) = ws_stream.split();
 
-    // TODO: Handle job cancelling
+    let mut current_job: Option<(Uuid, JoinHandle<()>)> = None;
+    let config = Arc::new(config);
+    let builder = Arc::new(builder);
+    let client = Arc::new(client);
+
     while let Some(message) = read.next().await {
+        if let Some(ref job) = current_job {
+            if job.1.is_finished() {
+                current_job = None;
+            }
+        }
+
         match message {
             Ok(Message::Text(text)) => {
                 info!("Received message: {}", text);
@@ -111,85 +126,125 @@ pub async fn handle_connect(
 
                 match server_message {
                     EjServerMessage::Build(job) => {
-                        let mut output = EjRunOutput::new(&config);
-                        let mut result = checkout_all(
-                            &config,
-                            &job.commit_hash,
-                            &job.remote_url,
-                            job.remote_token,
-                            &mut output,
-                        );
-                        if result.is_ok() {
-                            result = build(&config, &mut output);
+                        if let Some(job) = current_job.take() {
+                            warn!(
+                                "Received a new build request while a job is happening. Cancelling it"
+                            );
+                            cancel_job(&builder, &job.0, job.1, EjJobCancelReason::Timeout).await;
                         }
-                        if let Err(err) = dump_logs_to_temporary_file(&output) {
-                            error!("Failed to dump logs to file - {err}");
-                        }
-                        let response = EjBuilderBuildResult {
-                            job_id: job.id,
-                            builder_id: builder.id,
-                            logs: output.logs,
-                            successful: result.is_ok(),
-                        };
 
-                        let body = serde_json::to_string(&response);
-                        match body {
-                            Ok(body) => match client.post("v1/builder/build_result", body).await {
-                                Ok(response) => info!("Build results sent {:?}", response),
-                                Err(err) => {
-                                    /* TODO: Store the results locally to send them later */
-                                    error!("Failed to send build results {err}");
-                                }
-                            },
-                            Err(err) => {
-                                error!("Failed to serialize {:?} run results {}", response, err);
+                        let config = Arc::clone(&config);
+                        let builder = Arc::clone(&builder);
+                        let client = Arc::clone(&client);
+
+                        let handle = tokio::spawn(async move {
+                            let mut output = EjRunOutput::new(&config);
+                            let mut result = checkout_all(
+                                &config,
+                                &job.commit_hash,
+                                &job.remote_url,
+                                job.remote_token,
+                                &mut output,
+                            );
+                            if result.is_ok() {
+                                result = build(&builder, &config, &mut output);
                             }
-                        };
+                            if let Err(err) = dump_logs_to_temporary_file(&output) {
+                                error!("Failed to dump logs to file - {err}");
+                            }
+                            let response = EjBuilderBuildResult {
+                                job_id: job.id,
+                                builder_id: builder_api.id,
+                                logs: output.logs,
+                                successful: result.is_ok(),
+                            };
+
+                            let body = serde_json::to_string(&response);
+                            match body {
+                                Ok(body) => {
+                                    match client.post("v1/builder/build_result", body).await {
+                                        Ok(response) => info!("Build results sent {:?}", response),
+                                        Err(err) => {
+                                            /* TODO: Store the results locally to send them later */
+                                            error!("Failed to send build results {err}");
+                                        }
+                                    }
+                                }
+                                Err(err) => {
+                                    error!(
+                                        "Failed to serialize {:?} run results {}",
+                                        response, err
+                                    );
+                                }
+                            };
+                        });
+                        current_job = Some((job.id.clone(), handle));
                     }
                     EjServerMessage::BuildAndRun(job) => {
-                        let mut output = EjRunOutput::new(&config);
-                        let mut result = checkout_all(
-                            &config,
-                            &job.commit_hash,
-                            &job.remote_url,
-                            job.remote_token,
-                            &mut output,
-                        );
-                        if result.is_ok() {
-                            result = build(&config, &mut output);
+                        if let Some(job) = current_job.take() {
+                            warn!(
+                                "Received a new build request while a job is happening. Cancelling it"
+                            );
+                            cancel_job(&builder, &job.0, job.1, EjJobCancelReason::Timeout).await;
                         }
-                        if result.is_ok() {
-                            result = run(&config, &mut output);
-                        }
-                        if let Err(err) = dump_logs_to_temporary_file(&output) {
-                            error!("Failed to dump logs to file - {err}");
-                        }
-                        let response = EjBuilderRunResult {
-                            job_id: job.id,
-                            builder_id: builder.id,
-                            logs: output.logs,
-                            results: output.results,
-                            successful: result.is_ok(),
-                        };
-                        let body = serde_json::to_string(&response);
-                        match body {
-                            Ok(body) => match client.post("v1/builder/run_result", body).await {
-                                Ok(_) => trace!("Run results sent"),
-                                Err(err) => {
-                                    /* TODO: Store the results locally to send them later */
-                                    error!("Failed to send run results {err}");
-                                }
-                            },
-                            Err(err) => {
-                                error!("Failed to serialize run results {}", err);
+                        let config = Arc::clone(&config);
+                        let builder = Arc::clone(&builder);
+                        let client = Arc::clone(&client);
+                        let handle = tokio::spawn(async move {
+                            let mut output = EjRunOutput::new(&config);
+                            let mut result = checkout_all(
+                                &config,
+                                &job.commit_hash,
+                                &job.remote_url,
+                                job.remote_token,
+                                &mut output,
+                            );
+                            if result.is_ok() {
+                                result = build(&builder, &config, &mut output);
                             }
-                        }
+                            if result.is_ok() {
+                                result = run(&builder, &config, &mut output);
+                            }
+                            if let Err(err) = dump_logs_to_temporary_file(&output) {
+                                error!("Failed to dump logs to file - {err}");
+                            }
+                            let response = EjBuilderRunResult {
+                                job_id: job.id,
+                                builder_id: builder_api.id,
+                                logs: output.logs,
+                                results: output.results,
+                                successful: result.is_ok(),
+                            };
+                            let body = serde_json::to_string(&response);
+                            match body {
+                                Ok(body) => {
+                                    match client.post("v1/builder/run_result", body).await {
+                                        Ok(_) => trace!("Run results sent"),
+                                        Err(err) => {
+                                            /* TODO: Store the results locally to send them later */
+                                            error!("Failed to send run results {err}");
+                                        }
+                                    }
+                                }
+                                Err(err) => {
+                                    error!("Failed to serialize run results {}", err);
+                                }
+                            }
+                        });
+                        current_job = Some((job.id.clone(), handle));
                     }
                     EjServerMessage::Cancel(reason, job_id) => {
-                        warn!(
-                            "Received cancel message for job {} for reason {} but we don't handle those yet",
-                            job_id, reason
-                        )
+                        if let Some(curr_job) = current_job.take() {
+                            if curr_job.0 == job_id {
+                                cancel_job(&builder, &curr_job.0, curr_job.1, reason).await;
+                            } else {
+                                warn!(
+                                    "Received cancel request for a job different than the one in progress. "
+                                )
+                            }
+                        } else {
+                            info!("Received cancel request but no job is currently in progress. ")
+                        }
                     }
                     EjServerMessage::Close => {
                         println!("Received close command from server");
@@ -225,4 +280,37 @@ pub async fn handle_connect(
 
     println!("Builder shutting down");
     Ok(())
+}
+async fn cancel_job(
+    builder: &Builder,
+    job_id: &Uuid,
+    mut handle: JoinHandle<()>,
+    reason: EjJobCancelReason,
+) {
+    info!("Cancelling {job_id} - Reason: {reason}");
+    if let Err(err) = builder.tx.send(BuilderEvent::Exit).await {
+        error!("Failed to send exit request to builder task - {err}");
+    }
+
+    let timeout_result = timeout(Duration::from_secs(60), &mut handle).await;
+
+    match timeout_result {
+        Ok(Ok(())) => {
+            info!("Job {job_id} completed gracefully");
+        }
+        Ok(Err(join_err)) => {
+            error!("Job {job_id} finished with error: {join_err}");
+        }
+        Err(_timeout) => {
+            warn!("Job {job_id} did not complete within timeout, forcing abort");
+            handle.abort();
+            if let Err(join_err) = handle.await {
+                if join_err.is_cancelled() {
+                    info!("Job {job_id} was successfully aborted");
+                } else {
+                    error!("Job {job_id} abort failed: {join_err}");
+                }
+            }
+        }
+    }
 }

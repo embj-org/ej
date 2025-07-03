@@ -1,23 +1,30 @@
-use std::{
-    sync::{Arc, atomic::AtomicBool, mpsc},
-    thread,
-};
+use std::sync::{Arc, atomic::AtomicBool, mpsc};
 
 use ej::prelude::*;
 use ej::{ej_config::ej_config::EjConfig, ej_job::results::api::EjRunOutput};
-use lib_io::runner::{RunEvent, Runner};
+use lib_io::runner::RunEvent;
 use tracing::{error, info};
 
-pub fn build(config: &EjConfig, output: &mut EjRunOutput) -> Result<()> {
+use crate::common::SpawnRunnerArgs;
+use crate::{builder::Builder, common::spawn_runner};
+
+pub fn build(builder: &Builder, config: &EjConfig, output: &mut EjRunOutput) -> Result<()> {
     let board_count = config.boards.len();
+
     for (board_idx, board) in config.boards.iter().enumerate() {
         info!("Board {}/{}: {}", board_idx + 1, board_count, board.name);
         for (config_idx, board_config) in board.configs.iter().enumerate() {
             let (tx, rx) = mpsc::channel();
             let should_stop = Arc::new(AtomicBool::new(false));
             info!("Config {}: {}", config_idx + 1, board_config.name);
-            let runner = Runner::new_without_args(board_config.build_script.clone());
-            let handler = thread::spawn(move || runner.run(tx, should_stop));
+
+            let args = SpawnRunnerArgs {
+                script_name: board_config.build_script.clone(),
+                config_name: board_config.name.clone(),
+                config_path: builder.config_path.clone(),
+                socket_path: builder.socket_path.clone(),
+            };
+            let handle = spawn_runner(args, tx, should_stop);
 
             while let Ok(event) = rx.recv() {
                 match event {
@@ -53,7 +60,7 @@ pub fn build(config: &EjConfig, output: &mut EjRunOutput) -> Result<()> {
                     }
                 }
             }
-            let exit_status = handler
+            let exit_status = handle
                 .join()
                 .map_err(|err| Error::Generic(format!("Error joining build thread {:?}", err)))?
                 .ok_or(Error::Generic(format!("Error joining build thread")))?;

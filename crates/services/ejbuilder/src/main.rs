@@ -1,24 +1,28 @@
 mod build;
+mod builder;
 mod checkout;
 mod cli;
 mod commands;
+mod common;
 mod connection;
 mod logs;
 mod run;
+use std::path::PathBuf;
 
 use clap::Parser;
 use cli::{Cli, Commands};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::{
+    builder::Builder,
     checkout::handle_checkout,
     commands::{handle_parse, handle_run_and_build},
     connection::handle_connect,
 };
+use ej::prelude::*;
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    // Initialize tracing
+async fn main() -> Result<()> {
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -28,24 +32,18 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let cli = Cli::parse();
+    let default_socket_path = PathBuf::from("/tmp/ejb.sock");
+    let builder =
+        Builder::create(cli.config, cli.socket_path.unwrap_or(default_socket_path)).await?;
 
-    let result = match cli.command {
-        Commands::Parse => handle_parse(&cli.config),
+    match cli.command {
+        Commands::Parse => handle_parse(&builder),
         Commands::Checkout {
             commit_hash,
             remote_url,
             remote_token,
-        } => handle_checkout(&cli.config, commit_hash, remote_url, remote_token),
-        Commands::Validate => handle_run_and_build(&cli.config),
-        Commands::Connect { server } => {
-            handle_connect(&cli.config, &server, cli.id, cli.token).await
-        }
-    };
-
-    if let Err(e) = result {
-        eprintln!("Error: {}", e);
-        std::process::exit(1);
+        } => handle_checkout(&builder, commit_hash, remote_url, remote_token),
+        Commands::Validate => handle_run_and_build(&builder),
+        Commands::Connect { server } => handle_connect(builder, &server, cli.id, cli.token).await,
     }
-
-    Ok(())
 }

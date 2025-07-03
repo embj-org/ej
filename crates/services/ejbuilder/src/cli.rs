@@ -17,6 +17,10 @@ pub struct Cli {
     #[arg(short, long)]
     pub token: Option<String>,
 
+    /// Builder socket used to communicate with child processes
+    #[arg(short, long)]
+    pub socket_path: Option<PathBuf>,
+
     #[command(subcommand)]
     pub command: Commands,
 }
