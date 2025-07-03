@@ -1,6 +1,6 @@
 use ej::{ej_config::ej_config::EjUserConfig, prelude::*};
 use futures_util::lock::Mutex;
-use serde::{Deserialize, Serialize};
+use lib_builder_sdk::BuilderEvent;
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
@@ -14,11 +14,6 @@ use tokio::{
 use tracing::{error, info, warn};
 
 use ej::ej_config::ej_config::EjConfig;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum BuilderEvent {
-    Exit,
-}
 
 pub struct Builder {
     pub config: EjConfig,

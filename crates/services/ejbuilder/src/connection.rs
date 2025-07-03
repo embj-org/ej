@@ -11,6 +11,7 @@ use ej::prelude::*;
 use ej::web::ctx::AUTH_HEADER_PREFIX;
 use ej::{ej_builder::api::EjBuilderApi, web::ctx::AUTH_HEADER};
 use futures_util::{SinkExt, StreamExt};
+use lib_builder_sdk::BuilderEvent;
 use lib_requests::ApiClient;
 use tokio::task::JoinHandle;
 use tokio::time::timeout;
@@ -21,7 +22,7 @@ use tracing::{debug, error, info, trace, warn};
 use uuid::Uuid;
 
 use crate::build::build;
-use crate::builder::{Builder, BuilderEvent};
+use crate::builder::Builder;
 use crate::checkout::checkout_all;
 use crate::logs::dump_logs_to_temporary_file;
 use crate::run::run;
