@@ -3,6 +3,8 @@ name = "ej-config"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
+readme = "README.md"
 
 [dependencies]
 ej-auth = { path = "../../libs/ej-auth" }

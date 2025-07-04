@@ -3,6 +3,8 @@ name = "ej-models"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
+readme = "README.md"
 
 [dependencies]
 diesel = { version = "2.2.10", features = [

@@ -3,6 +3,8 @@ name = "ej-builder-sdk"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
+readme = "README.md"
 
 [dependencies]
 tokio = { version = "1.44.2" }

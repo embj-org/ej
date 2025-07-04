@@ -25,3 +25,4 @@ resolver = "2"
 version = "0.2.0"
 authors = ["André Costa andre_miguel_costa@hotmail.com"]
 edition = "2024"
+license = "MIT"
