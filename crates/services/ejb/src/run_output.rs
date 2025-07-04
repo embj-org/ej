@@ -17,8 +17,4 @@ impl<'a> EjRunOutput<'a> {
             results: HashMap::new(),
         }
     }
-    pub fn reset(&mut self) {
-        self.logs.clear();
-        self.results.clear();
-    }
 }
