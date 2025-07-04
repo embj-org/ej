@@ -3,13 +3,13 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
+use ej::ej_builder::api::EjBuilderApi;
 use ej::ej_config::ej_config::EjConfig;
 use ej::ej_job::api::EjJobCancelReason;
 use ej::ej_job::results::api::{EjBuilderBuildResult, EjBuilderRunResult, EjRunOutput};
 use ej::ej_message::EjServerMessage;
 use ej::prelude::*;
-use ej::web::ctx::AUTH_HEADER_PREFIX;
-use ej::{ej_builder::api::EjBuilderApi, web::ctx::AUTH_HEADER};
+use ej::web::ctx::resolver::{AUTH_HEADER, AUTH_HEADER_PREFIX};
 use futures_util::{SinkExt, StreamExt};
 use lib_builder_sdk::BuilderEvent;
 use lib_requests::ApiClient;

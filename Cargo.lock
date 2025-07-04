@@ -219,9 +219,9 @@ checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
 name = "base64ct"
-version = "1.7.3"
+version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89e25b6adfb930f02d1981565a6e5d9c547ac15a96606256d3b59040e5cd4ca3"
+checksum = "55248b47b0caf0546f7988906588779981c43bb1bc9d0c44087278f80cdb44ba"
 
 [[package]]
 name = "bitflags"
@@ -559,22 +559,19 @@ checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
 name = "ej"
 version = "0.2.0"
 dependencies = [
- "argon2",
  "axum",
  "chrono",
  "futures",
  "futures-util",
  "headers",
- "jsonwebtoken",
+ "lib-auth",
  "lib-models",
  "log",
  "pretty_env_logger",
- "rand 0.8.5",
  "reqwest",
  "serde",
  "serde_json",
  "serial_test",
- "sha2",
  "thiserror",
  "tokio",
  "tokio-tungstenite",
@@ -1282,6 +1279,19 @@ name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
+
+[[package]]
+name = "lib-auth"
+version = "0.2.0"
+dependencies = [
+ "argon2",
+ "jsonwebtoken",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror",
+]
 
 [[package]]
 name = "lib-builder-sdk"

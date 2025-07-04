@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 
 use crate::{
-    crypto::auth::{AuthToken, encode_token},
     prelude::*,
+    web::auth_token::{AuthToken, encode_token},
 };
 use chrono::TimeDelta;
 use lib_models::builder::ejbuilder::EjBuilder;

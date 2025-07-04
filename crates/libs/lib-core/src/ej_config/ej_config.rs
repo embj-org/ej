@@ -1,6 +1,7 @@
-use crate::{crypto::sha256::generate_hash, ej_config::ej_board::EjBoard, prelude::*};
+use crate::{ej_config::ej_board::EjBoard, prelude::*};
 use std::path::Path;
 
+use lib_auth::sha256::generate_hash;
 use lib_models::{
     config::{
         ejboard::NewEjBoardDb,
@@ -46,7 +47,8 @@ impl EjConfig {
         }
     }
     pub fn save(self, builder_id: &Uuid, conn: &mut DbConnection) -> Result<Self> {
-        let hash = generate_hash(&self)?;
+        let payload = serde_json::to_string(&self)?;
+        let hash = generate_hash(&payload);
         if let Ok(_) = EjConfigDb::fetch_client_config(conn, builder_id, &hash) {
             info!("Config already exists");
             return Ok(self);

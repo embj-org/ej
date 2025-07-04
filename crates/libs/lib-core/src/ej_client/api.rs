@@ -1,14 +1,11 @@
 use std::{collections::HashSet, fmt};
 
 use crate::{
-    crypto::{
-        auth::{AuthToken, encode_token},
-        auth_body::AuthBody,
-        secret_hash::generate_secret_hash,
-    },
     prelude::*,
+    web::auth_token::{AuthToken, encode_token},
 };
 use chrono::TimeDelta;
+use lib_auth::{auth_body::AuthBody, secret_hash::generate_secret_hash};
 use lib_models::{
     auth::permission::Permission,
     client::ejclient::{EjClient, EjClientCreate},

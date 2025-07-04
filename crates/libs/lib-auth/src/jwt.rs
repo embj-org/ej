@@ -27,7 +27,7 @@ impl Keys {
     }
 }
 
-pub fn jwt_encode<T>(body: &T) -> std::result::Result<String, jsonwebtoken::errors::Error>
+pub fn jwt_encode<T>(body: &T) -> Result<String>
 where
     T: Serialize,
 {

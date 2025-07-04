@@ -12,10 +12,7 @@ pub enum Error {
     Models(#[from] lib_models::error::Error),
 
     #[error(transparent)]
-    JWT(#[from] jsonwebtoken::errors::Error),
-
-    #[error("PasswordHash {0}")]
-    PasswordHash(argon2::password_hash::Error),
+    Auth(#[from] lib_auth::error::Error),
 
     #[error(transparent)]
     Toml(#[from] toml::de::Error),

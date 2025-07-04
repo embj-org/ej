@@ -527,10 +527,10 @@ mod test {
     use super::*;
     use diesel::prelude::*;
     use diesel::r2d2::{ConnectionManager, Pool};
-    use ej::ctx::ctx_client::CtxClient;
     use ej::ej_connected_builder::EjConnectedBuilder;
     use ej::ej_job::api::{EjBuildResult, EjJob, EjJobType};
     use ej::ej_job::results::api::{EjBuilderBuildResult, EjBuilderRunResult};
+    use ej::web::ctx::ctx_client::CtxClient;
     use lib_models::db::config::DbConfig;
     use lib_models::db::connection::DbConnection;
     use std::collections::HashMap;

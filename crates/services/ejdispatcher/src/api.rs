@@ -20,7 +20,10 @@ use ej::{
     ej_message::{EjClientMessage, EjServerMessage},
     require_permission,
     web::{
-        ctx::{Ctx, login_builder, login_client, mw_ctx_resolver},
+        ctx::{
+            Ctx,
+            resolver::{login_builder, login_client, mw_ctx_resolver},
+        },
         mw_auth::mw_require_auth,
     },
 };

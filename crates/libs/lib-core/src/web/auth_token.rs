@@ -1,27 +1,24 @@
+use crate::{
+    ej_client::api::{EjClientApi, EjClientLoginRequest},
+    prelude::*,
+    web::ctx::{CtxWho, ctx_client::CtxClient},
+};
 use std::collections::HashSet;
 
 use chrono::{TimeDelta, Utc};
-use lib_models::auth::permission::Permission;
-use lib_models::client::ejclient::EjClient;
-use lib_models::db::connection::DbConnection;
+use lib_auth::{
+    ISS,
+    auth_body::AuthBody,
+    jwt::{jwt_decode, jwt_encode},
+    secret_hash::is_secret_valid,
+};
+use lib_models::{
+    auth::permission::Permission, client::ejclient::EjClient, db::connection::DbConnection,
+};
 use serde::{Deserialize, Serialize};
+use tracing::error;
 use uuid::Uuid;
 
-use crate::crypto::jwt::{jwt_decode, jwt_encode};
-use crate::crypto::secret_hash::is_secret_valid;
-use crate::ctx::ctx_client::CtxClient;
-use crate::ej_client::api::{EjClientApi, EjClientLoginRequest};
-use crate::prelude::*;
-
-use super::auth_body::AuthBody;
-
-const ISS: &str = "EJ";
-
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub enum CtxWho {
-    Client = 0,
-    Builder = 1,
-}
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AuthToken {
     pub sub: Uuid,
@@ -36,29 +33,6 @@ pub struct AuthToken {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_data: Option<CtxClient>,
     pub who: CtxWho,
-}
-
-#[derive(Debug, thiserror::Error, Clone)]
-pub enum AuthError {
-    #[error("Invalid Token")]
-    InvalidToken,
-    #[error("Token Missing")]
-    TokenMissing,
-    #[error("Token Expired")]
-    TokenExpired,
-    #[error(transparent)]
-    TokenCreation(#[from] jsonwebtoken::errors::Error),
-}
-
-impl From<AuthError> for Error {
-    fn from(value: AuthError) -> Self {
-        match value {
-            AuthError::TokenCreation(jwt_error) => Self::JWT(jwt_error),
-            AuthError::InvalidToken => Self::AuthInvalidToken,
-            AuthError::TokenMissing => Self::AuthTokenMissing,
-            AuthError::TokenExpired => Self::AuthTokenExpired,
-        }
-    }
 }
 
 impl AuthToken {
@@ -124,17 +98,17 @@ pub fn authenticate(
 
 pub fn encode_token(token: &AuthToken) -> Result<AuthBody> {
     let token = jwt_encode(&token).map_err(|err| {
-        log::error!("Failed to encode JWT {err}");
-        AuthError::TokenCreation(err)
+        error!("Failed to encode JWT {err}");
+        err
     })?;
 
     Ok(AuthBody::new(token))
 }
-pub fn decode_token(token: &str) -> std::result::Result<AuthToken, AuthError> {
+pub fn decode_token(token: &str) -> Result<AuthToken> {
     Ok(jwt_decode::<AuthToken>(token)
         .map_err(|err| {
             log::error!("Failed to decode jwt token {err}");
-            AuthError::InvalidToken
+            err
         })?
         .claims)
 }

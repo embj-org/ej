@@ -18,14 +18,13 @@ impl IntoResponse for Error {
             Error::AuthTokenCreation
             | Error::Generic(_)
             | Error::IO(_)
-            | Error::JWT(_)
-            | Error::PasswordHash(_)
             | Error::CtxMissing
             | Error::Json(_)
             | Error::Toml(_)
             | Error::BuildError
             | Error::RunError
             | Error::ChannelSendError
+            | Error::Auth(_)
             | Error::Models(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error"),
         };
 

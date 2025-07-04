@@ -5,20 +5,17 @@ edition.workspace = true
 authors.workspace = true
 
 [dependencies]
-argon2 = "0.5.3"
 lib-models = { path = "../../libs/lib-models" }
+lib-auth = { path = "../../libs/lib-auth" }
 axum = { version = "0.8.3", features = ["macros", "ws"] }
 chrono = { version = "0.4.40", features = ["serde"] }
 futures = "0.3.31"
 futures-util = "0.3.31"
 headers = "0.4.0"
-jsonwebtoken = "9.3.1"
 log = "0.4.27"
 pretty_env_logger = "0.5.0"
-rand = { version = "0.8.5", features = ["getrandom"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
-sha2 = "0.10.9"
 thiserror = "2.0.12"
 tokio = { version = "1.44.2", features = ["macros", "rt-multi-thread"] }
 tokio-tungstenite = "0.26.2"

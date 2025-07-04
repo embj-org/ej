@@ -1,11 +1,11 @@
-use std::collections::HashSet;
-
 use crate::{
-    crypto::auth::{AuthError, AuthToken, CtxWho, authenticate, decode_token},
-    ctx::ctx_client::CtxClient,
     ej_builder::api::EjBuilderApi,
     ej_client::api::{EjClientLogin, EjClientLoginRequest},
     prelude::*,
+    web::{
+        auth_token::{AuthToken, authenticate},
+        ctx::Ctx,
+    },
 };
 use axum::{
     body::Body,
@@ -14,30 +14,14 @@ use axum::{
     middleware::Next,
     response::Response,
 };
+use lib_auth::jwt::jwt_decode;
 use lib_models::db::connection::DbConnection;
 use tower_cookies::{Cookie, Cookies};
-use uuid::Uuid;
-
-#[derive(Clone, Debug)]
-pub struct Ctx {
-    pub client: CtxClient,
-    pub permissions: HashSet<String>,
-    pub who: CtxWho,
-}
 
 pub const AUTH_TOKEN_COOKIE: &str = "auth-token";
 pub const AUTH_HEADER: &str = "Authorization";
 pub const AUTH_HEADER_PREFIX: &str = "Bearer ";
 
-impl Ctx {
-    pub fn new(id: Uuid, who: CtxWho, permissions: HashSet<String>) -> Self {
-        Self {
-            client: CtxClient { id },
-            who,
-            permissions,
-        }
-    }
-}
 #[axum::debug_middleware]
 pub async fn mw_ctx_resolver(
     cookies: Cookies,
@@ -55,11 +39,11 @@ pub async fn mw_ctx_resolver(
                 .and_then(|s| s.strip_prefix(AUTH_HEADER_PREFIX))
                 .map(|s| s.to_string())
         })
-        .ok_or(AuthError::TokenMissing)
-        .and_then(|token| decode_token(&token))
+        .ok_or(lib_auth::error::Error::TokenMissing)
+        .and_then(|token| Ok(jwt_decode::<AuthToken>(&token)?.claims))
         .and_then(|token| {
             if token.exp < chrono::Utc::now().timestamp() {
-                Err(AuthError::TokenExpired)
+                Err(lib_auth::error::Error::TokenExpired)
             } else {
                 Ok(token)
             }
@@ -98,7 +82,7 @@ impl<S: Send + Sync> FromRequestParts<S> for Ctx {
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self> {
         Ok(parts
             .extensions
-            .get::<std::result::Result<Ctx, AuthError>>()
+            .get::<std::result::Result<Ctx, lib_auth::error::Error>>()
             .ok_or(Error::CtxMissing)?
             .clone()?)
     }
