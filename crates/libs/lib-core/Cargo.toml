@@ -6,15 +6,9 @@ authors.workspace = true
 
 [dependencies]
 argon2 = "0.5.3"
+lib-models = { path = "../../libs/lib-models" }
 axum = { version = "0.8.3", features = ["macros", "ws"] }
 chrono = { version = "0.4.40", features = ["serde"] }
-diesel = { version = "2.2.10", features = [
-	"uuid",
-	"chrono",
-	"postgres",
-	"r2d2",
-] }
-diesel_migrations = { version = "2.2.0", features = ["postgres"] }
 futures = "0.3.31"
 futures-util = "0.3.31"
 headers = "0.4.0"

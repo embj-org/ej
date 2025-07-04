@@ -3,17 +3,19 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use ej::ej_config::ej_board_config::EjBoardConfigApi;
+use ej::ej_connected_builder::EjConnectedBuilder;
 use ej::ej_job::api::{
     EjBuildResult, EjDeployableJob, EjJob, EjJobCancelReason, EjJobType, EjJobUpdate, EjRunResult,
 };
-use ej::ej_job::db::EjJobDb;
-use ej::ej_job::logs::db::EjJobLog;
 use ej::ej_job::results::api::EjJobResult;
-use ej::ej_job::results::db::EjJobResultDb;
-use ej::ej_job::status::db::EjJobStatus;
 use ej::ej_message::EjServerMessage;
 use ej::prelude::*;
-use ej::{db::connection::DbConnection, ej_connected_builder::EjConnectedBuilder};
+
+use lib_models::db::connection::DbConnection;
+use lib_models::job::ejjob::EjJobDb;
+use lib_models::job::ejjob_logs::EjJobLog;
+use lib_models::job::ejjob_results::EjJobResultDb;
+use lib_models::job::ejjob_status::EjJobStatus;
 use tokio::time::sleep;
 use tokio::{
     sync::{
@@ -526,9 +528,11 @@ mod test {
     use diesel::prelude::*;
     use diesel::r2d2::{ConnectionManager, Pool};
     use ej::ctx::ctx_client::CtxClient;
-    use ej::db::config::DbConfig;
+    use ej::ej_connected_builder::EjConnectedBuilder;
     use ej::ej_job::api::{EjBuildResult, EjJob, EjJobType};
     use ej::ej_job::results::api::{EjBuilderBuildResult, EjBuilderRunResult};
+    use lib_models::db::config::DbConfig;
+    use lib_models::db::connection::DbConnection;
     use std::collections::HashMap;
     use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
     use std::time::Duration;

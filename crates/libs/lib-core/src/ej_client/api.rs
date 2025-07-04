@@ -6,15 +6,16 @@ use crate::{
         auth_body::AuthBody,
         secret_hash::generate_secret_hash,
     },
-    db::connection::DbConnection,
-    permission::Permission,
     prelude::*,
 };
 use chrono::TimeDelta;
+use lib_models::{
+    auth::permission::Permission,
+    client::ejclient::{EjClient, EjClientCreate},
+    db::connection::DbConnection,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-
-use super::db::{EjClient, EjClientCreate};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EjClientApi {

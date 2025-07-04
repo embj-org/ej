@@ -9,16 +9,13 @@ pub enum Error {
     IO(#[from] std::io::Error),
 
     #[error(transparent)]
+    Models(#[from] lib_models::error::Error),
+
+    #[error(transparent)]
     JWT(#[from] jsonwebtoken::errors::Error),
 
     #[error("PasswordHash {0}")]
     PasswordHash(argon2::password_hash::Error),
-
-    #[error(transparent)]
-    R2D2(#[from] diesel::r2d2::PoolError),
-
-    #[error(transparent)]
-    Diesel(#[from] diesel::result::Error),
 
     #[error(transparent)]
     Toml(#[from] toml::de::Error),

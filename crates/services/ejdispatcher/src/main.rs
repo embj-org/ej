@@ -1,7 +1,5 @@
-use ej::{
-    db::{config::DbConfig, connection::DbConnection},
-    prelude::*,
-};
+use ej::prelude::*;
+use lib_models::db::{config::DbConfig, connection::DbConnection};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::{api::setup_api, dispatcher::Dispatcher, socket::setup_socket};

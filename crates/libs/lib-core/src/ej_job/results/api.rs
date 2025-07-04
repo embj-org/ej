@@ -1,16 +1,15 @@
-use crate::{
-    ej_job::{
-        api::EjJobType, db::EjJobDb, logs::db::EjJobLogCreate, results::db::EjJobResultCreate,
-        status::db::EjJobStatus,
-    },
-    prelude::*,
-};
+use crate::{ej_config::ej_config::EjConfig, ej_job::api::EjJobType, prelude::*};
 use std::collections::HashMap;
 
+use lib_models::{
+    db::connection::DbConnection,
+    job::{
+        ejjob::EjJobDb, ejjob_logs::EjJobLogCreate, ejjob_results::EjJobResultCreate,
+        ejjob_status::EjJobStatus,
+    },
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-
-use crate::{db::connection::DbConnection, ej_config::ej_config::EjConfig};
 
 pub trait EjJobResult {
     fn save(self, connection: &mut DbConnection) -> Result<()>;

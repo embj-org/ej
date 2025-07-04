@@ -1,6 +1,6 @@
 use crate::prelude::*;
 use crate::schema::ejboard_config::dsl::*;
-use crate::{db::connection::DbConnection, ej_config::db::ej_board_db::EjBoardDb};
+use crate::{config::ejboard::EjBoardDb, db::connection::DbConnection};
 use chrono::{DateTime, Utc};
 use diesel::prelude::*;
 use uuid::Uuid;

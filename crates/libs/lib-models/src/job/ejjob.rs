@@ -1,7 +1,9 @@
-use super::status::db::EjJobStatus;
-use crate::ej_job::job_type::db::EjJobTypeDb;
+use crate::db::connection::DbConnection;
+use crate::job::ejjob_type::EjJobTypeDb;
 use crate::prelude::*;
-use crate::{db::connection::DbConnection, schema::ejjob::dsl::*};
+use crate::schema::ejjob::dsl::*;
+use crate::schema::ejjob::status;
+use crate::{config::ejboard_config::EjBoardConfigDb, job::ejjob_status::EjJobStatus};
 use chrono::{DateTime, Utc};
 use diesel::associations::HasTable;
 use diesel::prelude::*;

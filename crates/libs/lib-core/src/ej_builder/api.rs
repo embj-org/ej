@@ -5,10 +5,9 @@ use crate::{
     prelude::*,
 };
 use chrono::TimeDelta;
+use lib_models::builder::ejbuilder::EjBuilder;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-
-use super::db::EjBuilder;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EjBuilderApi {

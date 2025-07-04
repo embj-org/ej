@@ -1,5 +1,5 @@
+use crate::config::ejconfig::EjConfigDb;
 use crate::db::connection::DbConnection;
-use crate::ej_config::db::ej_config_db::EjConfigDb;
 use crate::prelude::*;
 use crate::schema::ejboard::dsl::*;
 use chrono::{DateTime, Utc};

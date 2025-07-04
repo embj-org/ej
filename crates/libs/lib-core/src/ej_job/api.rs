@@ -1,17 +1,34 @@
 use std::fmt;
 
+use lib_models::{
+    db::connection::DbConnection,
+    job::{ejjob::EjJobCreate, ejjob_type::EjJobTypeDb},
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
-    db::connection::DbConnection, ej_config::ej_board_config::EjBoardConfigApi,
-    ej_job::db::EjJobCreate, prelude::*,
-};
+use crate::{ej_config::ej_board_config::EjBoardConfigApi, prelude::*};
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub enum EjJobType {
     Build = 0,
     BuildAndRun = 1,
+}
+
+impl From<i32> for EjJobType {
+    fn from(value: i32) -> Self {
+        match value {
+            0 => EjJobType::Build,
+            1 => EjJobType::BuildAndRun,
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl From<EjJobTypeDb> for EjJobType {
+    fn from(value: EjJobTypeDb) -> Self {
+        value.id.into()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

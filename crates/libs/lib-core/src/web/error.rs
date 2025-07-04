@@ -1,9 +1,11 @@
 use crate::prelude::*;
 use axum::{Json, http::StatusCode, response::IntoResponse};
 use serde_json::json;
+use tracing::error;
 
 impl IntoResponse for Error {
     fn into_response(self) -> axum::response::Response {
+        error!("Creating API error response for error: {:?}", self);
         let (status, message) = match self {
             Error::AuthTokenMissing => (StatusCode::UNAUTHORIZED, "Authentication required"),
             Error::AuthTokenExpired => (StatusCode::UNAUTHORIZED, "Authentication token expired"),
@@ -18,16 +20,13 @@ impl IntoResponse for Error {
             | Error::IO(_)
             | Error::JWT(_)
             | Error::PasswordHash(_)
-            | Error::R2D2(_)
-            | Error::Diesel(_)
             | Error::CtxMissing
             | Error::Json(_)
             | Error::Toml(_)
             | Error::BuildError
             | Error::RunError
-            | Error::ChannelSendError => {
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error")
-            }
+            | Error::ChannelSendError
+            | Error::Models(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error"),
         };
 
         let body = Json(json!({

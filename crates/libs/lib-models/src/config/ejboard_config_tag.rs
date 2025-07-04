@@ -2,8 +2,8 @@ use diesel::prelude::*;
 use uuid::Uuid;
 
 use crate::{
+    config::{ejboard_config::EjBoardConfigDb, ejtag::EjTag},
     db::connection::DbConnection,
-    ej_config::db::{ej_board_config_db::EjBoardConfigDb, ej_tag::EjTag},
     prelude::*,
 };
 

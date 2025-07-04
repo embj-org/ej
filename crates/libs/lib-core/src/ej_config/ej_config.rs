@@ -1,29 +1,21 @@
-use crate::{
-    crypto::sha256::generate_hash,
-    db::connection::DbConnection,
-    ej_config::{
-        db::{
-            ej_board_config_tag_db::NewEjBoardConfigTag,
-            ej_tag::{EjTag, NewEjTag},
-        },
-        ej_board::EjBoard,
-    },
-    prelude::*,
-};
-use std::path::{Path, PathBuf};
+use crate::{crypto::sha256::generate_hash, ej_config::ej_board::EjBoard, prelude::*};
+use std::path::Path;
 
+use lib_models::{
+    config::{
+        ejboard::NewEjBoardDb,
+        ejboard_config::NewEjBoardConfigDb,
+        ejboard_config_tag::NewEjBoardConfigTag,
+        ejconfig::{EjConfigDb, NewEjConfigDb},
+        ejtag::{EjTag, NewEjTag},
+    },
+    db::connection::DbConnection,
+};
 use log::info;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{
-    db::{
-        ej_board_config_db::NewEjBoardConfigDb,
-        ej_board_db::NewEjBoardDb,
-        ej_config_db::{EjConfigDb, NewEjConfigDb},
-    },
-    ej_board::EjUserBoard,
-};
+use super::ej_board::EjUserBoard;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EjGlobalConfig {

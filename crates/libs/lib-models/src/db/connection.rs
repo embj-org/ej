@@ -3,7 +3,7 @@ use diesel::r2d2::ConnectionManager;
 use diesel::r2d2::Pool;
 use diesel_migrations::embed_migrations;
 use diesel_migrations::{EmbeddedMigrations, MigrationHarness};
-use log::info;
+use tracing::info;
 
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 

@@ -3,7 +3,6 @@ use std::collections::HashSet;
 use crate::{
     crypto::auth::{AuthError, AuthToken, CtxWho, authenticate, decode_token},
     ctx::ctx_client::CtxClient,
-    db::connection::DbConnection,
     ej_builder::api::EjBuilderApi,
     ej_client::api::{EjClientLogin, EjClientLoginRequest},
     prelude::*,
@@ -15,6 +14,7 @@ use axum::{
     middleware::Next,
     response::Response,
 };
+use lib_models::db::connection::DbConnection;
 use tower_cookies::{Cookie, Cookies};
 use uuid::Uuid;
 

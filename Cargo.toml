@@ -6,6 +6,7 @@ unused = "allow"
 members = [
 	# Libs
 	"crates/libs/lib-core",
+	"crates/libs/lib-models",
 	"crates/libs/lib-io",
 	"crates/libs/lib-requests",
 	"crates/libs/lib-dispatcher-sdk",

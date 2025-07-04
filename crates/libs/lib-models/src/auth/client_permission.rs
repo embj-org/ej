@@ -1,5 +1,6 @@
 use crate::{
-    db::connection::DbConnection, ej_client::db::EjClient, permission::Permission, prelude::*,
+    auth::permission::Permission, client::ejclient::EjClient, db::connection::DbConnection,
+    prelude::*,
 };
 use chrono::{DateTime, Utc};
 use diesel::prelude::*;

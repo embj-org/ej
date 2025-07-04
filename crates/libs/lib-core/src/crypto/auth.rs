@@ -1,16 +1,16 @@
 use std::collections::HashSet;
 
 use chrono::{TimeDelta, Utc};
+use lib_models::auth::permission::Permission;
+use lib_models::client::ejclient::EjClient;
+use lib_models::db::connection::DbConnection;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::crypto::jwt::{jwt_decode, jwt_encode};
 use crate::crypto::secret_hash::is_secret_valid;
 use crate::ctx::ctx_client::CtxClient;
-use crate::db::connection::DbConnection;
 use crate::ej_client::api::{EjClientApi, EjClientLoginRequest};
-use crate::ej_client::db::EjClient;
-use crate::permission::Permission;
 use crate::prelude::*;
 
 use super::auth_body::AuthBody;

@@ -6,6 +6,7 @@ authors.workspace = true
 
 [dependencies]
 ej = { path = "../../libs/lib-core" }
+lib-models = { path = "../../libs/lib-models" }
 axum = { version = "0.8.3", features = ["macros", "ws"] }
 futures = "0.3.31"
 futures-util = "0.3.31"

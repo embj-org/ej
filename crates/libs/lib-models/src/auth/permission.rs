@@ -1,5 +1,4 @@
-use crate::db::connection::DbConnection;
-use crate::prelude::*;
+use crate::{db::connection::DbConnection, prelude::*};
 use diesel::prelude::*;
 
 #[derive(Debug, Clone, Queryable, Selectable, Identifiable, Hash, PartialEq, Eq)]

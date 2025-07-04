@@ -562,12 +562,11 @@ dependencies = [
  "argon2",
  "axum",
  "chrono",
- "diesel",
- "diesel_migrations",
  "futures",
  "futures-util",
  "headers",
  "jsonwebtoken",
+ "lib-models",
  "log",
  "pretty_env_logger",
  "rand 0.8.5",
@@ -642,6 +641,7 @@ dependencies = [
  "ej",
  "futures",
  "futures-util",
+ "lib-models",
  "serde",
  "serde_json",
  "tokio",
@@ -1312,6 +1312,19 @@ name = "lib-io"
 version = "0.2.0"
 dependencies = [
  "ntest",
+]
+
+[[package]]
+name = "lib-models"
+version = "0.2.0"
+dependencies = [
+ "chrono",
+ "diesel",
+ "diesel_migrations",
+ "serde",
+ "thiserror",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]

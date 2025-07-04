@@ -1,13 +1,12 @@
 use std::fmt::{self};
 
-use crate::{
-    db::connection::DbConnection, ej_config::db::ej_board_config_tag_db::EjBoardConfigTag,
-    prelude::*,
+use crate::prelude::*;
+use lib_models::{
+    config::{ejboard_config::EjBoardConfigDb, ejboard_config_tag::EjBoardConfigTag},
+    db::connection::DbConnection,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-
-use crate::ej_config::db::ej_board_config_db::EjBoardConfigDb;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EjUserBoardConfig {

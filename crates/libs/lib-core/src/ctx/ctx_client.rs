@@ -1,11 +1,9 @@
 use crate::prelude::*;
+use lib_models::{builder::ejbuilder::EjBuilderCreate, db::connection::DbConnection};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
-    db::connection::DbConnection,
-    ej_builder::{api::EjBuilderApi, db::EjBuilderCreate},
-};
+use crate::ej_builder::api::EjBuilderApi;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CtxClient {
