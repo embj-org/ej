@@ -561,11 +561,11 @@ version = "0.2.0"
 dependencies = [
  "axum",
  "chrono",
+ "ej-auth",
+ "ej-models",
  "futures",
  "futures-util",
  "headers",
- "lib-auth",
- "lib-models",
  "log",
  "pretty_env_logger",
  "reqwest",
@@ -584,6 +584,73 @@ dependencies = [
 ]
 
 [[package]]
+name = "ej-auth"
+version = "0.2.0"
+dependencies = [
+ "argon2",
+ "jsonwebtoken",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror",
+]
+
+[[package]]
+name = "ej-builder-sdk"
+version = "0.2.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "ej-dispatcher-sdk"
+version = "0.2.0"
+dependencies = [
+ "ej",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "ej-io"
+version = "0.2.0"
+dependencies = [
+ "ntest",
+]
+
+[[package]]
+name = "ej-models"
+version = "0.2.0"
+dependencies = [
+ "chrono",
+ "diesel",
+ "diesel_migrations",
+ "serde",
+ "thiserror",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "ej-requests"
+version = "0.2.0"
+dependencies = [
+ "ej",
+ "reqwest",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "ejb"
 version = "0.2.0"
 dependencies = [
@@ -591,10 +658,10 @@ dependencies = [
  "axum",
  "clap",
  "ej",
+ "ej-builder-sdk",
+ "ej-io",
+ "ej-requests",
  "futures-util",
- "lib-builder-sdk",
- "lib-io",
- "lib-requests",
  "reqwest",
  "serde",
  "serde_json",
@@ -613,10 +680,10 @@ version = "0.2.0"
 dependencies = [
  "clap",
  "ej",
+ "ej-dispatcher-sdk",
+ "ej-io",
+ "ej-requests",
  "futures-util",
- "lib-dispatcher-sdk",
- "lib-io",
- "lib-requests",
  "log",
  "pretty_env_logger",
  "reqwest",
@@ -636,9 +703,9 @@ dependencies = [
  "diesel",
  "diesel_migrations",
  "ej",
+ "ej-models",
  "futures",
  "futures-util",
- "lib-models",
  "serde",
  "serde_json",
  "tokio",
@@ -1279,73 +1346,6 @@ name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
-
-[[package]]
-name = "lib-auth"
-version = "0.2.0"
-dependencies = [
- "argon2",
- "jsonwebtoken",
- "rand 0.8.5",
- "serde",
- "serde_json",
- "sha2",
- "thiserror",
-]
-
-[[package]]
-name = "lib-builder-sdk"
-version = "0.2.0"
-dependencies = [
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "lib-dispatcher-sdk"
-version = "0.2.0"
-dependencies = [
- "ej",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "tracing",
- "uuid",
-]
-
-[[package]]
-name = "lib-io"
-version = "0.2.0"
-dependencies = [
- "ntest",
-]
-
-[[package]]
-name = "lib-models"
-version = "0.2.0"
-dependencies = [
- "chrono",
- "diesel",
- "diesel_migrations",
- "serde",
- "thiserror",
- "tracing",
- "uuid",
-]
-
-[[package]]
-name = "lib-requests"
-version = "0.2.0"
-dependencies = [
- "ej",
- "reqwest",
- "serde",
- "serde_json",
-]
 
 [[package]]
 name = "libc"

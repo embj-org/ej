@@ -1,0 +1,13 @@
+[package]
+name = "ej-io"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+ntest = "0.9.3"
+
+[lints]
+workspace = true

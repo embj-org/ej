@@ -5,17 +5,17 @@ unused = "allow"
 [workspace]
 members = [
 	# Libs
-	"crates/libs/lib-core",
-	"crates/libs/lib-models",
-	"crates/libs/lib-auth",
-	"crates/libs/lib-io",
-	"crates/libs/lib-requests",
-	"crates/libs/lib-dispatcher-sdk",
-	"crates/libs/lib-builder-sdk",
+	"crates/libs/ej",
+	"crates/libs/ej-models",
+	"crates/libs/ej-auth",
+	"crates/libs/ej-io",
+	"crates/libs/ej-requests",
+	"crates/libs/ej-dispatcher-sdk",
+	"crates/libs/ej-builder-sdk",
 
 	# Services
-	"crates/services/ejdispatcher",
-	"crates/services/ejbuilder",
+	"crates/services/ejd",
+	"crates/services/ejb",
 	"crates/services/ejcli",
 ]
 resolver = "2"

@@ -5,9 +5,9 @@ use ej::{
     ej_message::{EjSocketClientMessage, EjSocketServerMessage},
     prelude::*,
 };
-use lib_dispatcher_sdk::build::dispatch_build;
-use lib_dispatcher_sdk::run::dispatch_run;
-use lib_requests::ApiClient;
+use ej_dispatcher_sdk::build::dispatch_build;
+use ej_dispatcher_sdk::run::dispatch_run;
+use ej_requests::ApiClient;
 use std::{collections::HashMap, path::PathBuf, time::Duration};
 use tokio::{
     io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
