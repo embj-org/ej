@@ -84,9 +84,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - dockerfile: ./crates/services/ejdispatcher/Dockerfile
+          - dockerfile: ./crates/services/ejd/Dockerfile
             image: ghcr.io/embj-org/ejd
-          - dockerfile: ./crates/services/ejbuilder/Dockerfile
+          - dockerfile: ./crates/services/ejb/Dockerfile
             image: ghcr.io/embj-org/ejb
     permissions:
       contents: read
