@@ -1,7 +1,6 @@
-pub mod auth;
 pub mod auth_body;
-pub mod jwt;
 pub mod error;
+pub mod jwt;
 pub mod prelude;
 pub mod secret_hash;
 pub mod sha256;
