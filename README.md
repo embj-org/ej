@@ -18,10 +18,12 @@ EJ is built with modularity in mind, consisting of multiple libraries and two ma
 ### Libraries
 - ej-auth - Authentication utilities (JWT management, password hashing)
 - ej-builder-sdk - Interface library for creating builder applications
+- ej-config - Shared configuration structures and utilities for EJ builder configurations, ensuring consistency between builder and dispatcher components.
 - ej-dispatcher-sdk - Interface library for creating dispatcher applications  
 - ej-io - Program management utilities
 - ej-models - Database models for EJ
 - ej-requests - HTTP request handling utilities
+- ej-web - Private web utilities and components used internally by the EJ dispatcher, not intended for external use.
 
 ## Design philosophy
 
