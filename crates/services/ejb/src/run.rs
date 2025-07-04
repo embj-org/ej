@@ -1,6 +1,5 @@
-use ej::ej_config::ej_config::EjConfig;
-use ej::prelude::*;
-use ej::{ej_config::ej_board::EjBoard, ej_job::results::api::EjRunOutput};
+use ej_config::ej_board::EjBoard;
+use ej_config::ej_config::EjConfig;
 use ej_io::runner::RunEvent;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -12,6 +11,8 @@ use uuid::Uuid;
 
 use crate::builder::Builder;
 use crate::common::{SpawnRunnerArgs, spawn_runner};
+use crate::prelude::*;
+use crate::run_output::EjRunOutput;
 
 pub fn run(
     builder: &Builder,

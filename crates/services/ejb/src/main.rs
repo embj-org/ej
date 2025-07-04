@@ -5,21 +5,24 @@ mod cli;
 mod commands;
 mod common;
 mod connection;
+mod error;
 mod logs;
+mod prelude;
 mod run;
+mod run_output;
 use std::path::PathBuf;
 
 use clap::Parser;
 use cli::{Cli, Commands};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+use crate::prelude::*;
 use crate::{
     builder::Builder,
     checkout::handle_checkout,
     commands::{handle_parse, handle_run_and_build},
     connection::handle_connect,
 };
-use ej::prelude::*;
 
 #[tokio::main]
 async fn main() -> Result<()> {

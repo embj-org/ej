@@ -1,11 +1,13 @@
-use ej::prelude::*;
 use ej_models::db::{config::DbConfig, connection::DbConnection};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::{api::setup_api, dispatcher::Dispatcher, socket::setup_socket};
 
+use crate::prelude::*;
 mod api;
-pub mod dispatcher;
+mod dispatcher;
+mod error;
+mod prelude;
 mod socket;
 
 #[tokio::main]

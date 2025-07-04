@@ -1,8 +1,5 @@
-use ej::{
-    ej_config::{ej_board_config::EjBoardConfig, ej_config::EjConfig},
-    ej_job::results::api::EjRunOutput,
-    prelude::*,
-};
+use crate::{prelude::*, run_output::EjRunOutput};
+use ej_config::{ej_board_config::EjBoardConfig, ej_config::EjConfig};
 use ej_io::runner::{RunEvent, Runner};
 use std::{
     collections::HashMap,

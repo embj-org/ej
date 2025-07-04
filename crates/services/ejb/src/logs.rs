@@ -1,6 +1,6 @@
 use std::{fs::File, io::Write, path::PathBuf};
 
-use ej::{ej_job::results::api::EjRunOutput, prelude::*};
+use crate::{prelude::*, run_output::EjRunOutput};
 use strip_ansi_escapes::strip;
 use tracing::{error, info};
 

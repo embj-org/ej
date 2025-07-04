@@ -556,34 +556,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
 
 [[package]]
-name = "ej"
-version = "0.2.0"
-dependencies = [
- "axum",
- "chrono",
- "ej-auth",
- "ej-models",
- "futures",
- "futures-util",
- "headers",
- "log",
- "pretty_env_logger",
- "reqwest",
- "serde",
- "serde_json",
- "serial_test",
- "thiserror",
- "tokio",
- "tokio-tungstenite",
- "toml",
- "tower-cookies",
- "tower-http",
- "tracing",
- "tracing-subscriber",
- "uuid",
-]
-
-[[package]]
 name = "ej-auth"
 version = "0.2.0"
 dependencies = [
@@ -608,13 +580,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "ej-config"
+version = "0.2.0"
+dependencies = [
+ "ej-auth",
+ "serde",
+ "thiserror",
+ "toml",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "ej-dispatcher-sdk"
 version = "0.2.0"
 dependencies = [
- "ej",
+ "ej-config",
  "serde",
  "serde_json",
  "tempfile",
+ "thiserror",
  "tokio",
  "tracing",
  "uuid",
@@ -644,10 +629,40 @@ dependencies = [
 name = "ej-requests"
 version = "0.2.0"
 dependencies = [
- "ej",
+ "ej-web",
  "reqwest",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "ej-web"
+version = "0.2.0"
+dependencies = [
+ "axum",
+ "chrono",
+ "ej-auth",
+ "ej-config",
+ "ej-dispatcher-sdk",
+ "ej-models",
+ "futures",
+ "futures-util",
+ "headers",
+ "log",
+ "pretty_env_logger",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "thiserror",
+ "tokio",
+ "tokio-tungstenite",
+ "toml",
+ "tower-cookies",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]
@@ -657,15 +672,19 @@ dependencies = [
  "anyhow",
  "axum",
  "clap",
- "ej",
+ "ej-auth",
  "ej-builder-sdk",
+ "ej-config",
+ "ej-dispatcher-sdk",
  "ej-io",
  "ej-requests",
+ "ej-web",
  "futures-util",
  "reqwest",
  "serde",
  "serde_json",
  "strip-ansi-escapes",
+ "thiserror",
  "tokio",
  "tokio-tungstenite",
  "toml",
@@ -679,9 +698,7 @@ name = "ejcli"
 version = "0.2.0"
 dependencies = [
  "clap",
- "ej",
  "ej-dispatcher-sdk",
- "ej-io",
  "ej-requests",
  "futures-util",
  "log",
@@ -702,12 +719,15 @@ dependencies = [
  "chrono",
  "diesel",
  "diesel_migrations",
- "ej",
+ "ej-config",
+ "ej-dispatcher-sdk",
  "ej-models",
+ "ej-web",
  "futures",
  "futures-util",
  "serde",
  "serde_json",
+ "thiserror",
  "tokio",
  "tokio-tungstenite",
  "tower-cookies",

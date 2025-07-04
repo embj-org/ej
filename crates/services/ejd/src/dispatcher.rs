@@ -2,20 +2,20 @@ use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
 use std::time::Duration;
 
-use ej::ej_config::ej_board_config::EjBoardConfigApi;
-use ej::ej_connected_builder::EjConnectedBuilder;
-use ej::ej_job::api::{
+use crate::prelude::*;
+use ej_dispatcher_sdk::ejjob::{
     EjBuildResult, EjDeployableJob, EjJob, EjJobCancelReason, EjJobType, EjJobUpdate, EjRunResult,
 };
-use ej::ej_job::results::api::EjJobResult;
-use ej::ej_message::EjServerMessage;
-use ej::prelude::*;
-
+use ej_dispatcher_sdk::ejws_message::EjWsServerMessage;
 use ej_models::db::connection::DbConnection;
 use ej_models::job::ejjob::EjJobDb;
 use ej_models::job::ejjob_logs::EjJobLog;
 use ej_models::job::ejjob_results::EjJobResultDb;
 use ej_models::job::ejjob_status::EjJobStatus;
+use ej_web::ejconfig::board_config_db_to_board_config_api;
+use ej_web::ejconnected_builder::EjConnectedBuilder;
+use ej_web::ejjob::create_job;
+use ej_web::traits::job_result::EjJobResult;
 use tokio::time::sleep;
 use tokio::{
     sync::{
@@ -176,9 +176,9 @@ impl DispatcherPrivate {
         builder: &EjConnectedBuilder,
     ) -> bool {
         let message = if job.job_type == EjJobType::BuildAndRun {
-            EjServerMessage::BuildAndRun(job)
+            EjWsServerMessage::BuildAndRun(job)
         } else {
-            EjServerMessage::Build(job)
+            EjWsServerMessage::Build(job)
         };
         if let Err(err) = builder.tx.send(message).await {
             error!("Failed to dispatch builder {:?} - {err}", builder);
@@ -270,8 +270,7 @@ impl DispatcherPrivate {
         let logsdb = EjJobLog::fetch_with_board_config_by_job_id(&jobdb.id, &connection)?;
         let mut logs = Vec::new();
         for (logdb, board_config_db) in logsdb {
-            let config_api =
-                EjBoardConfigApi::try_from_board_config_db(board_config_db, connection)?;
+            let config_api = board_config_db_to_board_config_api(board_config_db, connection)?;
             logs.push((config_api, logdb.log));
         }
 
@@ -289,8 +288,7 @@ impl DispatcherPrivate {
                 EjJobResultDb::fetch_with_board_config_by_job_id(&jobdb.id, &connection)?;
             let mut results = Vec::new();
             for (resultdb, board_config_db) in resultsdb {
-                let config_api =
-                    EjBoardConfigApi::try_from_board_config_db(board_config_db, connection)?;
+                let config_api = board_config_db_to_board_config_api(board_config_db, connection)?;
                 results.push((config_api, resultdb.result));
             }
 
@@ -414,7 +412,7 @@ impl DispatcherPrivate {
             }
             if let Err(err) = connected_builder
                 .tx
-                .send(EjServerMessage::Cancel(reason, job.data.id.clone()))
+                .send(EjWsServerMessage::Cancel(reason, job.data.id.clone()))
                 .await
             {
                 error!(
@@ -485,7 +483,7 @@ impl Dispatcher {
         if self.builders.lock().await.len() == 0 {
             return Err(Error::NoBuildersAvailable);
         }
-        let job = job.create(&mut self.connection)?;
+        let job = create_job(job, &mut self.connection)?;
 
         self.tx
             .send(DispatcherEvent::DispatchJob {
@@ -493,12 +491,7 @@ impl Dispatcher {
                 job_update_tx,
                 timeout,
             })
-            .await
-            .map_err(|err| {
-                error!("Failed to send dispatcher event {err}");
-                Error::ChannelSendError
-            })?;
-
+            .await?;
         Ok(job)
     }
 
@@ -512,11 +505,7 @@ impl Dispatcher {
                 job_id: job_id,
                 builder_id: builder_id,
             })
-            .await
-            .map_err(|err| {
-                error!("Failed to send dispatcher event {err}");
-                Error::ChannelSendError
-            })?;
+            .await?;
 
         Ok(())
     }
@@ -527,12 +516,11 @@ mod test {
     use super::*;
     use diesel::prelude::*;
     use diesel::r2d2::{ConnectionManager, Pool};
-    use ej::ej_connected_builder::EjConnectedBuilder;
-    use ej::ej_job::api::{EjBuildResult, EjJob, EjJobType};
-    use ej::ej_job::results::api::{EjBuilderBuildResult, EjBuilderRunResult};
-    use ej::web::ctx::ctx_client::CtxClient;
+    use ej_dispatcher_sdk::ejjob::results::{EjBuilderBuildResult, EjBuilderRunResult};
     use ej_models::db::config::DbConfig;
     use ej_models::db::connection::DbConnection;
+    use ej_web::ctx::ctx_client::CtxClient;
+    use ej_web::ejconnected_builder::EjConnectedBuilder;
     use std::collections::HashMap;
     use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
     use std::time::Duration;
@@ -618,7 +606,7 @@ mod test {
         }
     }
 
-    fn create_builder(builder_id: Uuid, tx: Sender<EjServerMessage>) -> EjConnectedBuilder {
+    fn create_builder(builder_id: Uuid, tx: Sender<EjWsServerMessage>) -> EjConnectedBuilder {
         EjConnectedBuilder {
             builder: CtxClient { id: builder_id },
             tx,
@@ -691,7 +679,7 @@ mod test {
                 .await
                 .expect("Should receive dispatch")
                 .unwrap();
-            assert_eq!(builder_dispatch, EjServerMessage::Build(result.unwrap()));
+            assert_eq!(builder_dispatch, EjWsServerMessage::Build(result.unwrap()));
 
             // Should receive JobStarted update
             let job_update = timeout(Duration::from_millis(100), job_update_rx.recv())
@@ -735,7 +723,7 @@ mod test {
                     .await
                     .expect("Should receive dispatch")
                     .unwrap();
-                assert_eq!(builder_dispatch, EjServerMessage::Build(job.clone()));
+                assert_eq!(builder_dispatch, EjWsServerMessage::Build(job.clone()));
             }
 
             let job_update = timeout(Duration::from_millis(100), job_update_rx.recv())
@@ -931,7 +919,7 @@ mod test {
                 .await
                 .expect("Should receive dispatch")
                 .unwrap();
-            assert_eq!(builder_dispatch, EjServerMessage::Build(job1.clone()));
+            assert_eq!(builder_dispatch, EjWsServerMessage::Build(job1.clone()));
 
             let job2_queued = job2_rx.recv().await.expect("Job2 should be queued");
             assert_eq!(
@@ -970,7 +958,7 @@ mod test {
                 .await
                 .expect("Should receive dispatch")
                 .unwrap();
-            assert_eq!(builder_dispatch, EjServerMessage::Build(job2.clone()));
+            assert_eq!(builder_dispatch, EjWsServerMessage::Build(job2.clone()));
 
             let job2_result = EjBuilderBuildResult {
                 job_id: job2.id.clone(),
@@ -1021,7 +1009,10 @@ mod test {
                 .await
                 .expect("Should receive dispatch")
                 .unwrap();
-            assert_eq!(builder_dispatch, EjServerMessage::BuildAndRun(job.clone()));
+            assert_eq!(
+                builder_dispatch,
+                EjWsServerMessage::BuildAndRun(job.clone())
+            );
 
             let job_result = EjBuilderRunResult {
                 job_id: job.id,
@@ -1095,7 +1086,7 @@ mod test {
                 .await
                 .expect("Should receive dispatch")
                 .unwrap();
-            assert_eq!(builder_dispatch, EjServerMessage::Build(job.clone()));
+            assert_eq!(builder_dispatch, EjWsServerMessage::Build(job.clone()));
             let job_update = timeout(Duration::from_millis(100), job_update_rx.recv())
                 .await
                 .expect("Should receive update")
@@ -1118,7 +1109,7 @@ mod test {
                 .expect("Should have update");
             assert_eq!(
                 builder_cancel,
-                EjServerMessage::Cancel(EjJobCancelReason::Timeout, job.id)
+                EjWsServerMessage::Cancel(EjJobCancelReason::Timeout, job.id)
             );
         });
     }

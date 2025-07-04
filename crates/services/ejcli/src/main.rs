@@ -1,12 +1,10 @@
-use ej::{ej_job::api::EjJobType, prelude::*};
-
 mod cli;
 mod commands;
 
 use clap::Parser;
 use cli::{Cli, Commands};
 use commands::{handle_create_builder, handle_create_root_user, handle_dispatch};
-use ej::prelude::*;
+use ej_dispatcher_sdk::{ejjob::EjJobType, prelude::*};
 
 #[tokio::main]
 async fn main() -> Result<()> {

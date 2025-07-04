@@ -1,11 +1,4 @@
-use ej::{
-    ej_config::ej_board_config::EjBoardConfigApi,
-    ej_job::{
-        api::{EjJob, EjJobType, EjJobUpdate},
-        results::api::EjBoardConfigId,
-    },
-    prelude::*,
-};
+use crate::{ejjob::EjJob, ejsocket_message::EjSocketClientMessage, prelude::*};
 use std::{collections::HashMap, fmt, path::Path, time::Duration};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines},
@@ -14,9 +7,14 @@ use tokio::{
 use tracing::{error, info};
 use uuid::Uuid;
 
-use ej::ej_message::{EjSocketClientMessage, EjSocketServerMessage};
-
 pub mod build;
+pub mod ejbuilder;
+pub mod ejclient;
+pub mod ejjob;
+pub mod ejsocket_message;
+pub mod ejws_message;
+pub mod error;
+pub mod prelude;
 pub mod run;
 
 async fn dispatch(stream: &mut UnixStream, job: EjJob, max_duration: Duration) -> Result<()> {

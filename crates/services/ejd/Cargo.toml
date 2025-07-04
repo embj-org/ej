@@ -5,8 +5,10 @@ edition.workspace = true
 authors.workspace = true
 
 [dependencies]
-ej = { path = "../../libs/ej" }
+ej-web = { path = "../../libs/ej-web" }
 ej-models = { path = "../../libs/ej-models" }
+ej-config = { path = "../../libs/ej-config" }
+ej-dispatcher-sdk = { path = "../../libs/ej-dispatcher-sdk" }
 axum = { version = "0.8.3", features = ["macros", "ws"] }
 futures = "0.3.31"
 futures-util = "0.3.31"
@@ -24,6 +26,7 @@ serde_json = "1.0.140"
 serde = { version = "1.0.219", features = ["derive"] }
 uuid = { version = "1.16.0" }
 chrono = { version = "0.4.40" }
+thiserror = "2.0.12"
 
 [dev-dependencies]
 diesel = { version = "2.2.10", features = [

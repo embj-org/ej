@@ -9,27 +9,31 @@ use axum::{
     response::IntoResponse,
     routing::{any, post},
 };
-use ej::{
-    ej_builder::api::EjBuilderApi,
-    ej_client::api::{EjClientApi, EjClientLogin, EjClientLoginRequest, EjClientPost},
-    ej_config::ej_config::{EjConfig, EjUserConfig},
-    ej_job::{
-        api::{EjDeployableJob, EjJob},
-        results::api::{EjBuilderBuildResult, EjBuilderRunResult, EjJobResult},
+use ej_config::ej_config::{EjConfig, EjUserConfig};
+use ej_dispatcher_sdk::{
+    ejbuilder::EjBuilderApi,
+    ejclient::{EjClientApi, EjClientLogin, EjClientLoginRequest, EjClientPost},
+    ejjob::{
+        EjDeployableJob, EjJob,
+        results::{EjBuilderBuildResult, EjBuilderRunResult},
     },
-    ej_message::{EjClientMessage, EjServerMessage},
+    ejws_message::{EjWsClientMessage, EjWsServerMessage},
+};
+use ej_web::{
+    ctx::{
+        Ctx,
+        resolver::{login_builder, login_client, mw_ctx_resolver},
+    },
+    ejclient::create_client,
+    ejconfig::save_config,
+    ejjob::create_job,
+    mw_auth::mw_require_auth,
     require_permission,
-    web::{
-        ctx::{
-            Ctx,
-            resolver::{login_builder, login_client, mw_ctx_resolver},
-        },
-        mw_auth::mw_require_auth,
-    },
+    traits::job_result::EjJobResult,
 };
 use tokio::{sync::mpsc::channel, task::JoinHandle};
 use tower_cookies::{CookieManagerLayer, Cookies};
-use tracing::info;
+use tracing::{error, info};
 
 use std::net::SocketAddr;
 use tower_http::{
@@ -41,9 +45,9 @@ use axum::extract::connect_info::ConnectInfo;
 use axum::extract::ws::CloseFrame;
 use futures::{sink::SinkExt, stream::StreamExt};
 
-use ej::prelude::*;
-
 use crate::dispatcher::Dispatcher;
+use crate::prelude::*;
+use ej_web::prelude::Result as EjWebResult;
 
 fn v1(path: &str) -> String {
     format!("/v1/{path}")
@@ -119,14 +123,15 @@ pub async fn setup_api(dispatcher: Dispatcher) -> Result<JoinHandle<Result<()>>>
 async fn post_client(
     State(state): State<Dispatcher>,
     Json(payload): Json<EjClientPost>,
-) -> Result<Json<EjClientApi>> {
-    Ok(Json(payload.persist(&state.connection)?))
+) -> EjWebResult<Json<EjClientApi>> {
+    let client = create_client(payload, &state.connection)?;
+    Ok(Json(client))
 }
 
 async fn create_builder(
     State(mut state): State<Dispatcher>,
     ctx: Ctx,
-) -> Result<Json<EjBuilderApi>> {
+) -> EjWebResult<Json<EjBuilderApi>> {
     Ok(Json(ctx.client.create_builder(&mut state.connection)?))
 }
 
@@ -134,14 +139,14 @@ async fn login(
     state: State<Dispatcher>,
     cookies: Cookies,
     Json(payload): Json<EjClientLoginRequest>,
-) -> Result<Json<EjClientLogin>> {
+) -> EjWebResult<Json<EjClientLogin>> {
     Ok(Json(login_client(&payload, &state.connection, &cookies)?))
 }
 
 async fn login_builder_api(
     cookies: Cookies,
     Json(payload): Json<EjBuilderApi>,
-) -> Result<Json<EjBuilderApi>> {
+) -> EjWebResult<Json<EjBuilderApi>> {
     info!("Login builder: {}", payload.token);
     Ok(Json(login_builder(payload, &cookies)?))
 }
@@ -149,13 +154,13 @@ async fn login_builder_api(
 async fn dispatch_job(
     State(mut state): State<Dispatcher>,
     Json(payload): Json<EjJob>,
-) -> Result<Json<EjDeployableJob>> {
+) -> EjWebResult<Json<EjDeployableJob>> {
     let builders = state.builders.lock().await;
-    let job = payload.create(&mut state.connection)?;
+    let job = create_job(payload, &mut state.connection)?;
     for builder in builders.iter() {
         if let Err(err) = builder
             .tx
-            .send(EjServerMessage::BuildAndRun(job.clone()))
+            .send(EjWsServerMessage::BuildAndRun(job.clone()))
             .await
         {
             tracing::error!("Failed to dispatch job {err}");
@@ -164,20 +169,31 @@ async fn dispatch_job(
     Ok(Json(job))
 }
 
+#[axum::debug_handler]
 async fn push_config(
     State(mut state): State<Dispatcher>,
     ctx: Ctx,
     Json(payload): Json<EjUserConfig>,
-) -> Result<Json<EjConfig>> {
-    let config = EjConfig::from_config(payload);
-    Ok(Json(config.save(&ctx.client.id, &mut state.connection)?))
+) -> EjWebResult<Json<EjConfig>> {
+    let config = EjConfig::from_user_config(payload);
+    let config = save_config(config, &ctx.client.id, &mut state.connection)?;
+    Ok(Json(config))
 }
 
 async fn job_result<T: EjJobResult>(
     State(mut dispatcher): State<Dispatcher>,
     Json(payload): Json<T>,
-) -> Result<()> {
-    dispatcher.on_job_result(payload).await
+) -> EjWebResult<()> {
+    if let Err(err) = dispatcher.on_job_result(payload).await {
+        error!("Failed to dispach job {err}");
+        if matches!(err, Error::NoBuildersAvailable) {
+            return Err(ej_web::error::Error::NoBuildersAvailable);
+        } else {
+            return Err(ej_web::error::Error::InternalErrorDispatchingJob);
+        }
+    } else {
+        Ok(())
+    }
 }
 
 /// The handler for the HTTP request (this gets called when the HTTP request lands at the start
@@ -248,37 +264,33 @@ async fn handle_socket(ctx: Ctx, dispatcher: Dispatcher, mut socket: WebSocket, 
 
     let (mut sender, mut receiver) = socket.split();
 
-    let mut send_task: tokio::task::JoinHandle<Result<()>> = tokio::spawn(async move {
+    let mut send_task: JoinHandle<Result<()>> = tokio::spawn(async move {
         loop {
-            let message = rx.recv().await.ok_or(Error::Generic(String::from(
-                "Couldn't receive data from channel",
-            )))?;
+            let message = rx.recv().await;
 
-            let is_close = matches!(message, EjServerMessage::Close);
+            if let Some(message) = message {
+                let is_close = matches!(message, EjWsServerMessage::Close);
 
-            if is_close {
-                println!("Sending close to {addr}...");
+                if is_close {
+                    println!("Sending close to {addr}...");
+                    sender
+                        .send(Message::Close(Some(CloseFrame {
+                            code: axum::extract::ws::close_code::NORMAL,
+                            reason: Utf8Bytes::from_static("Goodbye"),
+                        })))
+                        .await?;
+
+                    return Ok(());
+                }
+                let serialized_message = serde_json::to_string(&message)?;
+
                 sender
-                    .send(Message::Close(Some(CloseFrame {
-                        code: axum::extract::ws::close_code::NORMAL,
-                        reason: Utf8Bytes::from_static("Goodbye"),
-                    })))
-                    .await
-                    .map_err(|_| {
-                        Error::Generic(String::from("Couldn't receive data from channel"))
-                    })?;
-
+                    .send(Message::Text(serialized_message.into()))
+                    .await?;
+            } else {
+                info!("Websocket send channel closed");
                 return Ok(());
             }
-            let serialized_message = serde_json::to_string(&message)
-                .map_err(|_| Error::Generic(String::from("Failed to serialize message")))?;
-
-            sender
-                .send(Message::Text(serialized_message.into()))
-                .await
-                .map_err(|_| {
-                    Error::Generic(String::from("Couldn't send message data to socket"))
-                })?;
         }
     });
 
@@ -287,18 +299,12 @@ async fn handle_socket(ctx: Ctx, dispatcher: Dispatcher, mut socket: WebSocket, 
             let message = receiver
                 .next()
                 .await
-                .ok_or(Error::Generic(String::from(
-                    "Failed to receive message from socket",
-                )))?
-                .map_err(|_| {
-                    Error::Generic(String::from("Failed to receive message from socket"))
-                })?;
+                .ok_or(Error::WsSocketReceiveFail)?
+                .map_err(|err| Error::WsSocketReceiveError(err.to_string()))?;
 
             match message {
                 Message::Text(t) => {
-                    let _message: EjClientMessage = serde_json::from_str(&t).map_err(|_| {
-                        Error::Generic(String::from("Failed to parse message from client"))
-                    })?;
+                    let _message: EjWsClientMessage = serde_json::from_str(&t)?;
                 }
                 Message::Close(c) => {
                     if let Some(cf) = c {
@@ -314,9 +320,7 @@ async fn handle_socket(ctx: Ctx, dispatcher: Dispatcher, mut socket: WebSocket, 
                     return Ok(());
                 }
                 Message::Binary(_) => {
-                    return Err(Error::Generic(String::from(
-                        "Invalid message format from client",
-                    )));
+                    return Err(Error::InvalidWsMessage);
                 }
                 Message::Ping(_) | Message::Pong(_) => {}
             }

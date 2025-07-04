@@ -1,4 +1,3 @@
-use ej::ej_job::results::api::EjRunOutput;
 use std::io::stdout;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
@@ -6,8 +5,9 @@ use std::sync::atomic::AtomicBool;
 use crate::build::build;
 use crate::builder::Builder;
 use crate::logs::dump_logs;
+use crate::prelude::*;
 use crate::run::run;
-use ej::prelude::*;
+use crate::run_output::EjRunOutput;
 
 pub fn handle_parse(builder: &Builder) -> Result<()> {
     let config = &builder.config;

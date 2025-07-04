@@ -3,14 +3,15 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use ej::ej_builder::api::EjBuilderApi;
-use ej::ej_config::ej_config::EjConfig;
-use ej::ej_job::api::EjJobCancelReason;
-use ej::ej_job::results::api::{EjBuilderBuildResult, EjBuilderRunResult, EjRunOutput};
-use ej::ej_message::EjServerMessage;
-use ej::prelude::*;
-use ej::web::ctx::resolver::{AUTH_HEADER, AUTH_HEADER_PREFIX};
+use crate::prelude::*;
+use crate::run_output::EjRunOutput;
+use ej_auth::{AUTH_HEADER, AUTH_HEADER_PREFIX};
 use ej_builder_sdk::BuilderEvent;
+use ej_config::ej_config::EjConfig;
+use ej_dispatcher_sdk::ejbuilder::EjBuilderApi;
+use ej_dispatcher_sdk::ejjob::EjJobCancelReason;
+use ej_dispatcher_sdk::ejjob::results::{EjBuilderBuildResult, EjBuilderRunResult};
+use ej_dispatcher_sdk::ejws_message::EjWsServerMessage;
 use ej_requests::ApiClient;
 use futures_util::{SinkExt, StreamExt};
 use tokio::task::JoinHandle;
@@ -38,20 +39,14 @@ pub async fn handle_connect(
     info!("Connecting to server: {}", server_url);
     let config = &builder.config;
 
-    let id = Uuid::from_str(&id.or_else(|| std::env::var("EJB_ID").ok()).ok_or_else(|| {
-        Error::Generic(String::from(
-            "Builder token is required. Set EJB_ID environment variable or use --id flag",
-        ))
-    })?)
-    .map_err(|err| Error::Generic(format!("Failed to parse id to uuid ({})", err)))?;
+    let id = Uuid::from_str(
+        &id.or_else(|| std::env::var("EJB_ID").ok())
+            .ok_or_else(|| Error::BuilderIDMissing)?,
+    )?;
 
     let auth_token = token
         .or_else(|| std::env::var("EJB_TOKEN").ok())
-        .ok_or_else(|| {
-            Error::Generic(String::from(
-                "Builder token is required. Set EJB_TOKEN environment variable or use --token flag",
-            ))
-        })?;
+        .ok_or_else(|| Error::BuilderTokenMissing)?;
 
     let client = ApiClient::new(server_url);
     let builder_api = EjBuilderApi {
@@ -94,9 +89,7 @@ pub async fn handle_connect(
             .unwrap(),
     );
 
-    let (ws_stream, _) = connect_async(request)
-        .await
-        .map_err(|e| Error::Generic(format!("Failed to connect to WebSocket: {}", e)))?;
+    let (ws_stream, _) = connect_async(request).await?;
 
     info!("WebSocket connection established");
 
@@ -118,7 +111,7 @@ pub async fn handle_connect(
             Ok(Message::Text(text)) => {
                 info!("Received message: {}", text);
 
-                let server_message: EjServerMessage = match serde_json::from_str(&text) {
+                let server_message: EjWsServerMessage = match serde_json::from_str(&text) {
                     Ok(msg) => msg,
                     Err(e) => {
                         error!("Failed to parse server message: {}", e);
@@ -127,7 +120,7 @@ pub async fn handle_connect(
                 };
 
                 match server_message {
-                    EjServerMessage::Build(job) => {
+                    EjWsServerMessage::Build(job) => {
                         if let Some(job) = current_job.take() {
                             warn!(
                                 "Received a new build request while a job is happening. Cancelling it"
@@ -185,7 +178,7 @@ pub async fn handle_connect(
                         });
                         current_job = Some((job.id.clone(), handle, stop));
                     }
-                    EjServerMessage::BuildAndRun(job) => {
+                    EjWsServerMessage::BuildAndRun(job) => {
                         if let Some(job) = current_job.take() {
                             warn!(
                                 "Received a new build request while a job is happening. Cancelling it"
@@ -241,7 +234,7 @@ pub async fn handle_connect(
                         });
                         current_job = Some((job.id.clone(), handle, stop));
                     }
-                    EjServerMessage::Cancel(reason, job_id) => {
+                    EjWsServerMessage::Cancel(reason, job_id) => {
                         if let Some(curr_job) = current_job.take() {
                             if curr_job.0 == job_id {
                                 cancel_job(&builder, &curr_job.0, curr_job.1, curr_job.2, reason)
@@ -255,7 +248,7 @@ pub async fn handle_connect(
                             info!("Received cancel request but no job is currently in progress. ")
                         }
                     }
-                    EjServerMessage::Close => {
+                    EjWsServerMessage::Close => {
                         println!("Received close command from server");
                         break;
                     }

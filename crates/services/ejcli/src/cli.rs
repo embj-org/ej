@@ -1,8 +1,4 @@
 use clap::{Args, Parser, Subcommand};
-use ej::{
-    ej_client::api::EjClientPost,
-    ej_job::api::{EjJob, EjJobType},
-};
 use std::{path::PathBuf, time::Duration};
 
 #[derive(Parser)]

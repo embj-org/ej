@@ -1,11 +1,12 @@
 use std::sync::{Arc, atomic::AtomicBool, mpsc};
 
-use ej::prelude::*;
-use ej::{ej_config::ej_config::EjConfig, ej_job::results::api::EjRunOutput};
+use ej_config::ej_config::EjConfig;
 use ej_io::runner::RunEvent;
 use tracing::{error, info};
 
 use crate::common::SpawnRunnerArgs;
+use crate::prelude::*;
+use crate::run_output::EjRunOutput;
 use crate::{builder::Builder, common::spawn_runner};
 
 pub fn build(
@@ -67,8 +68,8 @@ pub fn build(
             }
             let exit_status = handle
                 .join()
-                .map_err(|err| Error::Generic(format!("Error joining build thread {:?}", err)))?
-                .ok_or(Error::Generic(format!("Error joining build thread")))?;
+                .map_err(|err| Error::ThreadJoin(err))?
+                .ok_or(Error::ProcessExitStatusUnavailable)?;
 
             if !exit_status.success() {
                 error!("Build exit status {}", exit_status);

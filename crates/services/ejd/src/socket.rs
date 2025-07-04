@@ -1,8 +1,9 @@
-use ej::ej_message::{EjSocketClientMessage, EjSocketServerMessage};
-use ej::prelude::*;
+use ej_dispatcher_sdk::ejsocket_message::{EjSocketClientMessage, EjSocketServerMessage};
 use ej_models::auth::client_permission::{ClientPermission, NewClientPermission};
 use ej_models::auth::permission::Permission;
 use ej_models::client::ejclient::EjClient;
+use ej_web::ejclient::create_client;
+use ej_web::prelude::*;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixStream;
 use tokio::net::unix::OwnedWriteHalf;
@@ -33,7 +34,7 @@ async fn handle_message(
                 return Err(Error::ApiForbidden);
             }
             info!("Creating root user {}", payload.name);
-            let client = payload.persist(&dispatcher.connection)?;
+            let client = create_client(payload, &dispatcher.connection)?;
 
             let permissions = Permission::fetch_all(&dispatcher.connection)?;
             for permission in permissions.iter() {

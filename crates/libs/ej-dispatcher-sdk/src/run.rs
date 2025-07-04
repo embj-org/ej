@@ -1,11 +1,3 @@
-use ej::{
-    ej_config::ej_board_config::EjBoardConfigApi,
-    ej_job::{
-        api::{EjJob, EjJobType, EjJobUpdate, EjRunResult},
-        results::api::EjBoardConfigId,
-    },
-    prelude::*,
-};
 use std::{collections::HashMap, fmt, path::Path, time::Duration};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines},
@@ -14,7 +6,11 @@ use tokio::{
 use tracing::{error, info};
 use uuid::Uuid;
 
-use ej::ej_message::{EjSocketClientMessage, EjSocketServerMessage};
+use crate::{
+    ejjob::{EjJob, EjJobType, EjJobUpdate, EjRunResult},
+    ejsocket_message::EjSocketServerMessage,
+    prelude::*,
+};
 
 use crate::dispatch;
 pub async fn dispatch_run(
@@ -60,8 +56,11 @@ pub async fn dispatch_run(
 
 #[cfg(test)]
 mod tests {
+    use crate::ejjob::{EjDeployableJob, EjJobCancelReason};
+    use crate::ejsocket_message::EjSocketClientMessage;
+
     use super::*;
-    use ej::ej_config::ej_board_config::EjBoardConfigApi;
+    use ej_config::ej_board_config::EjBoardConfigApi;
     use serde_json;
     use std::collections::HashMap;
     use tempfile::NamedTempFile;
@@ -109,7 +108,7 @@ mod tests {
             }
 
             // Send success response with DispatchOk
-            let dispatch_ok = EjSocketServerMessage::DispatchOk(ej::ej_job::api::EjDeployableJob {
+            let dispatch_ok = EjSocketServerMessage::DispatchOk(EjDeployableJob {
                 id: Uuid::new_v4(),
                 job_type: EjJobType::BuildAndRun,
                 commit_hash: "test_commit_hash".to_string(),
@@ -205,7 +204,7 @@ mod tests {
             }
 
             // Send success response with DispatchOk
-            let dispatch_ok = EjSocketServerMessage::DispatchOk(ej::ej_job::api::EjDeployableJob {
+            let dispatch_ok = EjSocketServerMessage::DispatchOk(EjDeployableJob {
                 id: Uuid::new_v4(),
                 job_type: EjJobType::BuildAndRun,
                 commit_hash: "test_commit_hash".to_string(),
@@ -266,7 +265,7 @@ mod tests {
             reader.read_line(&mut line).await.unwrap();
 
             // Send success response with DispatchOk
-            let dispatch_ok = EjSocketServerMessage::DispatchOk(ej::ej_job::api::EjDeployableJob {
+            let dispatch_ok = EjSocketServerMessage::DispatchOk(EjDeployableJob {
                 id: Uuid::new_v4(),
                 job_type: EjJobType::BuildAndRun,
                 commit_hash: "test_commit_hash".to_string(),
@@ -289,7 +288,7 @@ mod tests {
 
             // Send some more valid messages to ensure we continue processing
             let job_cancelled = EjSocketServerMessage::JobUpdate(EjJobUpdate::JobCancelled(
-                ej::ej_job::api::EjJobCancelReason::Timeout,
+                EjJobCancelReason::Timeout,
             ));
             let response = serde_json::to_string(&job_cancelled).unwrap();
             stream.write_all(response.as_bytes()).await.unwrap();
@@ -338,7 +337,7 @@ mod tests {
             reader.read_line(&mut line).await.unwrap();
 
             // Send success response with DispatchOk
-            let dispatch_ok = EjSocketServerMessage::DispatchOk(ej::ej_job::api::EjDeployableJob {
+            let dispatch_ok = EjSocketServerMessage::DispatchOk(EjDeployableJob {
                 id: Uuid::new_v4(),
                 job_type: EjJobType::BuildAndRun,
                 commit_hash: "test_commit_hash".to_string(),

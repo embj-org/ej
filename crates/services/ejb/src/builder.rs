@@ -1,5 +1,6 @@
-use ej::{ej_config::ej_config::EjUserConfig, prelude::*};
+use crate::prelude::*;
 use ej_builder_sdk::BuilderEvent;
+use ej_config::ej_config::{EjConfig, EjUserConfig};
 use futures_util::lock::Mutex;
 use std::{
     path::{Path, PathBuf},
@@ -13,8 +14,6 @@ use tokio::{
 };
 use tracing::{error, info, warn};
 
-use ej::ej_config::ej_config::EjConfig;
-
 pub struct Builder {
     pub config: EjConfig,
     pub config_path: String,
@@ -25,7 +24,7 @@ pub struct Builder {
 impl Builder {
     pub async fn create(config_path: PathBuf, socket_path: PathBuf) -> Result<Self> {
         let config = EjUserConfig::from_file(&config_path)?;
-        let config = EjConfig::from_config(config);
+        let config = EjConfig::from_user_config(config);
         let (tx, rx) = channel(32);
         Builder::start_thread(rx, &socket_path).await?;
         let config_path_str = config_path

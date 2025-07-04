@@ -1,12 +1,8 @@
-use ej::{
-    ej_builder::api::EjBuilderApi,
-    ej_client::api::{EjClientLogin, EjClientLoginRequest, EjClientPost},
-    ej_job::api::{EjJob, EjJobType},
-    ej_message::{EjSocketClientMessage, EjSocketServerMessage},
-    prelude::*,
-};
-use ej_dispatcher_sdk::build::dispatch_build;
+use ej_dispatcher_sdk::ejbuilder::EjBuilderApi;
+use ej_dispatcher_sdk::ejclient::{EjClientLogin, EjClientLoginRequest, EjClientPost};
+use ej_dispatcher_sdk::ejsocket_message::{EjSocketClientMessage, EjSocketServerMessage};
 use ej_dispatcher_sdk::run::dispatch_run;
+use ej_dispatcher_sdk::{build::dispatch_build, ejjob::EjJobType};
 use ej_requests::ApiClient;
 use std::{collections::HashMap, path::PathBuf, time::Duration};
 use tokio::{
@@ -15,6 +11,7 @@ use tokio::{
 };
 
 use crate::cli::{DispatchArgs, UserArgs};
+use ej_dispatcher_sdk::prelude::*;
 
 pub async fn handle_dispatch(
     socket_path: &PathBuf,
