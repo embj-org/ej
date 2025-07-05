@@ -1,8 +1,7 @@
-//! Crate Prelude
+//! Common types and utilities.
 
+/// Configuration error type.
 pub use crate::error::Error;
 
+/// Configuration result type.
 pub type Result<T> = core::result::Result<T, Error>;
-
-// Generic Wrapper tuple struct for newtype pattern
-pub struct W<T>(pub T);

@@ -1,3 +1,5 @@
+//! Core configuration types for the EJ framework.
+
 use crate::{ej_board::EjBoard, prelude::*};
 use std::path::Path;
 
@@ -8,24 +10,35 @@ use uuid::Uuid;
 
 use super::ej_board::EjUserBoard;
 
+/// Global configuration settings.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EjGlobalConfig {
+    /// Configuration version.
     pub version: String,
 }
 
+/// User-provided configuration from TOML files.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EjUserConfig {
+    /// Global settings.
     pub global: EjGlobalConfig,
+    /// Board definitions.
     pub boards: Vec<EjUserBoard>,
 }
 
+/// Internal configuration with generated UUIDs.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EjConfig {
+    /// Global settings.
     pub global: EjGlobalConfig,
+    /// Board definitions with UUIDs.
     pub boards: Vec<EjBoard>,
 }
 
 impl EjConfig {
+    /// Convert user configuration to internal configuration.
+    ///
+    /// Assigns UUIDs to boards and configurations.
     pub fn from_user_config(config: EjUserConfig) -> Self {
         Self {
             global: config.global,
@@ -39,10 +52,12 @@ impl EjConfig {
 }
 
 impl EjUserConfig {
+    /// Load configuration from a TOML file.
     pub fn from_file(file_path: &Path) -> Result<Self> {
         let contents = std::fs::read_to_string(file_path)?;
         Ok(Self::from_toml(&contents)?)
     }
+    /// Parse configuration from TOML string.
     pub fn from_toml(value: &str) -> Result<Self> {
         Ok(toml::from_str(value)?)
     }
