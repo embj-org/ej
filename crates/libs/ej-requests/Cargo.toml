@@ -5,6 +5,7 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 readme = "README.md"
+description = "HTTP request handling utilities for the EJ framework."
 
 [dependencies]
 reqwest = { version = "0.12", features = ["json", "cookies"] }
