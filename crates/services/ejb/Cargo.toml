@@ -9,7 +9,7 @@ description = "The EJ Builder (EJB) application for managing build processes and
 
 [dependencies]
 ej-auth = "0.3.0"
-ej-io = { path = "../../libs/ej-io" }
+ej-io = "0.3.0"
 ej-builder-sdk = "0.3.0"
 ej-dispatcher-sdk = "0.3.0"
 ej-requests = "0.3.0"

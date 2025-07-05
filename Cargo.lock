@@ -681,6 +681,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "ej-io"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e6b6ee2944d2b1471953e13a5c912cbd3650ebca03cb76d6e314b595faca5e21"
+
+[[package]]
 name = "ej-models"
 version = "0.3.0"
 dependencies = [
@@ -742,7 +748,7 @@ dependencies = [
  "ej-builder-sdk 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "ej-config 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "ej-dispatcher-sdk 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "ej-io",
+ "ej-io 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "ej-requests 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-util",
  "serde_json",
