@@ -5,6 +5,7 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 readme = "README.md"
+description = "SDK for creating applications that interface with EJD"
 
 [dependencies]
 ej-config = "0.3.0"
