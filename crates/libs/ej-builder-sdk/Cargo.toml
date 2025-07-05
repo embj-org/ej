@@ -5,6 +5,7 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 readme = "README.md"
+description = "SDK for creating applications that interface with EJB"
 
 [dependencies]
 tokio = { version = "1.44.2", features = ["net", "io-util", "rt-multi-thread"] }
