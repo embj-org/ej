@@ -1,45 +1,61 @@
-//! Main Crate Error
+//! Main crate error types for ej-web.
+//!
+//! This module defines the error types used throughout the ej-web library,
+//! including HTTP response mapping for API endpoints.
 
 use axum::{Json, http::StatusCode, response::IntoResponse};
 use serde_json::json;
 use tracing::error;
 
+/// Main error type for the ej-web library.
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
+    /// I/O operation failed.
     #[error(transparent)]
     IO(#[from] std::io::Error),
 
+    /// Database or model operation failed.
     #[error(transparent)]
     Models(#[from] ej_models::error::Error),
 
+    /// Authentication operation failed.
     #[error(transparent)]
     Auth(#[from] ej_auth::error::Error),
 
+    /// JSON serialization/deserialization failed.
     #[error(transparent)]
     Json(#[from] serde_json::Error),
 
+    /// Failed to dispatch job to builder.
     #[error("Internal error dispatching job")]
     InternalErrorDispatchingJob,
 
+    /// Invalid job type specified.
     #[error("Invalid Job Type")]
     InvalidJobType,
 
+    /// No builders are currently available to process jobs.
     #[error("No builders available")]
     NoBuildersAvailable,
 
     /* Api Errors */
+    /// API access is forbidden for the current user.
     #[error("API Forbidden")]
     ApiForbidden,
 
+    /// Failed to create authentication token.
     #[error("Auth Token Creation")]
     AuthTokenCreation,
 
+    /// Invalid credentials provided.
     #[error("Wrong Credentials")]
     WrongCredentials,
 
+    /// Required credentials are missing.
     #[error("Missing Credentials")]
     MissingCredentials,
 
+    /// Request context is missing.
     #[error("Context Missing")]
     CtxMissing,
 }

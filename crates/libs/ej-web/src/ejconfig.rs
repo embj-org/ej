@@ -1,3 +1,5 @@
+//! Configuration management utilities for web handlers.
+
 use crate::prelude::*;
 use ej_auth::sha256::generate_hash;
 use ej_config::{ej_board_config::EjBoardConfigApi, ej_config::EjConfig};
@@ -14,6 +16,10 @@ use ej_models::{
 use tracing::info;
 use uuid::Uuid;
 
+/// Saves a configuration to the database.
+///
+/// If a config with the same hash already exists for the builder, returns the existing config.
+/// Otherwise, creates a new config entry with associated boards and tags.
 pub fn save_config(
     config: EjConfig,
     builder_id: &Uuid,

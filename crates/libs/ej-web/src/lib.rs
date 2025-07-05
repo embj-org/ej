@@ -1,3 +1,8 @@
+//! Web framework utilities and middleware for the ej platform.
+//!
+//! This library provides authentication, request context, and web-specific
+//! models and utilities for building HTTP APIs and web services.
+
 pub mod auth_token;
 pub mod ctx;
 pub mod ejclient;

@@ -1,3 +1,5 @@
+//! Job management utilities for web handlers.
+
 use ej_dispatcher_sdk::ejjob::{
     EjDeployableJob, EjJob, EjJobType,
     results::{EjBuilderBuildResult, EjBuilderRunResult},
@@ -15,6 +17,31 @@ use uuid::Uuid;
 
 use crate::{error::Error, prelude::*, traits::job_result::EjJobResult};
 
+/// Creates a new job from the provided job data.
+///
+/// Converts an `EjJob` into a database record and returns a `EjDeployableJob`
+/// that can be dispatched to builders.
+///
+/// # Examples
+///
+/// ```rust
+/// use ej_web::ejjob::create_job;
+/// use ej_dispatcher_sdk::ejjob::{EjJob, EjJobType};
+/// # use ej_models::db::connection::DbConnection;
+///
+/// # async fn example(mut connection: DbConnection) -> Result<(), Box<dyn std::error::Error>> {
+/// let job = EjJob {
+///     commit_hash: "abc123def456".to_string(),
+///     remote_url: "https://github.com/user/repo.git".to_string(),
+///     remote_token: Some("github_token".to_string()),
+///     job_type: EjJobType::Build,
+/// };
+///
+/// let deployable_job = create_job(job, &mut connection)?;
+/// println!("Created job with ID: {}", deployable_job.id);
+/// # Ok(())
+/// # }
+/// ```
 pub fn create_job(ejjob: EjJob, connection: &mut DbConnection) -> Result<EjDeployableJob> {
     let job = EjJobCreate {
         commit_hash: ejjob.commit_hash,
@@ -32,6 +59,31 @@ pub fn create_job(ejjob: EjJob, connection: &mut DbConnection) -> Result<EjDeplo
     })
 }
 
+/// Implementation of EjJobResult for build job results.
+///
+/// Saves build job results including logs and status updates to the database.
+///
+/// # Examples
+///
+/// ```rust
+/// use ej_web::traits::job_result::EjJobResult;
+/// use ej_dispatcher_sdk::ejjob::results::EjBuilderBuildResult;
+/// use std::collections::HashMap;
+/// use uuid::Uuid;
+/// # use ej_models::db::connection::DbConnection;
+///
+/// # async fn example(connection: &DbConnection) -> Result<(), Box<dyn std::error::Error>> {
+/// let build_result = EjBuilderBuildResult {
+///     job_id: Uuid::new_v4(),
+///     builder_id: Uuid::new_v4(),
+///     successful: true,
+///     logs: HashMap::new(),
+/// };
+///
+/// build_result.save(connection)?;
+/// # Ok(())
+/// # }
+/// ```
 impl EjJobResult for EjBuilderBuildResult {
     fn save(self, connection: &DbConnection) -> Result<()> {
         let result = self;
@@ -68,6 +120,32 @@ impl EjJobResult for EjBuilderBuildResult {
     }
 }
 
+/// Implementation of EjJobResult for run job results.
+///
+/// Saves run job results including logs, execution results, and status updates to the database.
+///
+/// # Examples
+///
+/// ```rust
+/// use ej_web::traits::job_result::EjJobResult;
+/// use ej_dispatcher_sdk::ejjob::results::EjBuilderRunResult;
+/// use std::collections::HashMap;
+/// use uuid::Uuid;
+/// # use ej_models::db::connection::DbConnection;
+///
+/// # async fn example(connection: &DbConnection) -> Result<(), Box<dyn std::error::Error>> {
+/// let run_result = EjBuilderRunResult {
+///     job_id: Uuid::new_v4(),
+///     builder_id: Uuid::new_v4(),
+///     successful: true,
+///     logs: HashMap::new(),
+///     results: HashMap::new(),
+/// };
+///
+/// run_result.save(connection)?;
+/// # Ok(())
+/// # }
+/// ```
 impl EjJobResult for EjBuilderRunResult {
     fn save(self, connection: &DbConnection) -> Result<()> {
         let run_result = self;

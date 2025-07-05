@@ -1,3 +1,5 @@
+//! Context resolver for extracting client information from HTTP requests.
+
 use axum::{
     body::Body,
     extract::{FromRequestParts, Request},
@@ -19,8 +21,23 @@ use crate::{
 };
 use crate::{auth_token::authenticate, prelude::*};
 
+/// The name of the cookie used to store authentication tokens.
 pub const AUTH_TOKEN_COOKIE: &str = "auth-token";
 
+/// Middleware for resolving request context from authentication tokens.
+///
+/// Extracts authentication tokens from cookies or headers, validates them,
+/// and adds the resulting context to the request extensions.
+///
+/// # Examples
+///
+/// ```rust
+/// use axum::Router;
+/// use ej_web::ctx::resolver::mw_ctx_resolver;
+///
+/// let app: Router<()> = Router::new()
+///     .layer(axum::middleware::from_fn(mw_ctx_resolver));
+/// ```
 #[axum::debug_middleware]
 pub async fn mw_ctx_resolver(
     cookies: Cookies,
@@ -58,11 +75,56 @@ pub async fn mw_ctx_resolver(
     next.run(req).await
 }
 
+/// Logs in a builder and sets authentication cookie.
+///
+/// # Examples
+///
+///
+/// ```rust,no_run
+/// use ej_web::ctx::resolver::login_builder;
+/// use ej_dispatcher_sdk::ejbuilder::EjBuilderApi;
+/// use tower_cookies::Cookies;
+/// use uuid::Uuid;
+///
+/// # fn example(cookies: &Cookies) -> Result<(), Box<dyn std::error::Error>> {
+/// let builder = EjBuilderApi {
+///     id: Uuid::new_v4(),
+///     token: "jwt_tokezn_here".to_string(),
+/// };
+///
+/// // In a real handler, cookies would be extracted from the request
+/// let logged_in_builder = login_builder(builder, cookies)?;
+/// # Ok(())
+/// # }
+/// ```
 pub fn login_builder(auth: EjBuilderApi, cookies: &Cookies) -> Result<EjBuilderApi> {
     cookies.add(Cookie::new(AUTH_TOKEN_COOKIE, auth.token.clone()));
     Ok(auth)
 }
 
+/// Logs in a client and sets authentication cookie.
+///
+/// Authenticates the client credentials and generatezs a JWT token for subsequent requests.
+///
+/// # Examples
+///
+/// ```rust
+/// use ej_web::ctx::resolver::login_client;
+/// use ej_dispatcher_sdk::ejclient::EjClientLoginRequest;
+/// use ej_models::db::connection::DbConnection;
+/// use tower_cookies::Cookies;
+///
+/// # async fn example(connection: &DbConnection, cookies: &Cookies) -> Result<(), Box<dyn std::error::Error>> {
+/// let request = EjClientLoginRequest {
+///     name: "client-name".to_string(),
+///     secret: "client-secret".to_string(),
+/// };
+///
+/// let login_result = login_client(&request, connection, cookies)?;
+/// println!("Client logged in with token: {}", login_result.access_token);
+/// # Ok(())
+/// # }
+/// ```
 pub fn login_client(
     auth: &EjClientLoginRequest,
     connection: &DbConnection,
