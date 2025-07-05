@@ -617,10 +617,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "ej-config"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "41e4d1e816f46afe61bc5fb2c4dc90b9e5a5b72060e49d9eb85fe26dcb3a277f"
+dependencies = [
+ "ej-auth 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde",
+ "thiserror",
+ "toml",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "ej-dispatcher-sdk"
 version = "0.3.0"
 dependencies = [
- "ej-config",
+ "ej-config 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde",
  "serde_json",
  "tempfile",
@@ -667,7 +681,7 @@ dependencies = [
  "axum",
  "chrono",
  "ej-auth 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "ej-config",
+ "ej-config 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "ej-dispatcher-sdk",
  "ej-models",
  "log",
@@ -687,7 +701,7 @@ dependencies = [
  "clap",
  "ej-auth 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "ej-builder-sdk",
- "ej-config",
+ "ej-config 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "ej-dispatcher-sdk",
  "ej-io",
  "ej-requests",
@@ -722,7 +736,7 @@ version = "0.3.0"
 dependencies = [
  "axum",
  "diesel",
- "ej-config",
+ "ej-config 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "ej-dispatcher-sdk",
  "ej-models",
  "ej-web",

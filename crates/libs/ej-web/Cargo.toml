@@ -9,7 +9,7 @@ readme = "README.md"
 [dependencies]
 ej-auth = "0.3.0"
 ej-models = { path = "../../libs/ej-models" }
-ej-config = { path = "../../libs/ej-config" }
+ej-config = "0.3.0"
 ej-dispatcher-sdk = { path = "../../libs/ej-dispatcher-sdk" }
 axum = { version = "0.8.3", features = ["macros", "ws"] }
 chrono = { version = "0.4.40", features = ["serde"] }
