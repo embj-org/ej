@@ -5,6 +5,7 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 readme = "README.md"
+description = "Configuration structures and utilities for EJ builder configurations."
 
 [dependencies]
 ej-auth = "0.3.0"
