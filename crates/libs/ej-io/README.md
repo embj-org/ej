@@ -26,3 +26,7 @@ ej-io = "0.3.0"
 ## Part of EJ Framework
 
 This crate is part of the [EJ Framework](https://github.com/embj-org/ej) - a modular and scalable framework for automated testing on physical embedded boards.
+
+## Copyright and License
+
+This crate is heavily inspired from PLX, a project co-developed by the author of EJ. The original PLX code is not yet released under an open source license but will be in the future pending a decision from HEIG-VD.

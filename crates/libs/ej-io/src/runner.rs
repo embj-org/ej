@@ -1,3 +1,5 @@
+//! High-level process runner with event handling.
+
 use std::{
     io::{self, BufRead, BufReader, Read},
     process::ExitStatus,
@@ -14,20 +16,37 @@ use crate::process::{
     ProcessStatus, capture_exit_status, get_process_status, spawn_process, stop_child,
 };
 
+/// Events emitted during process execution.
 #[derive(Debug, PartialEq)]
 pub enum RunEvent {
+    /// Process creation failed with error message.
     ProcessCreationFailed(String),
+    /// Process was successfully created.
     ProcessCreated,
+    /// Process ended (true = success, false = failure).
     ProcessEnd(bool),
+    /// New output line from the process.
     ProcessNewOutputLine(String),
 }
-// A wrapper for running process and handling process events
+
+/// High-level process runner with event-driven output handling.
 pub struct Runner {
+    /// Command to execute.
     command: String,
+    /// Command line arguments.
     args: Vec<String>,
 }
 
 impl Runner {
+    /// Create a new runner with command and arguments.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use ej_io::runner::Runner;
+    ///
+    /// let runner = Runner::new("ls", vec!["-la", "/tmp"]);
+    /// ```
     pub fn new(command: impl Into<String>, args: Vec<impl Into<String>>) -> Self {
         Self {
             command: command.into(),
@@ -35,12 +54,31 @@ impl Runner {
         }
     }
 
+    /// Create a new runner with just a command (no arguments).
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use ej_io::runner::Runner;
+    ///
+    /// let runner = Runner::new_without_args("pwd");
+    /// ```
     pub fn new_without_args(command: impl Into<String>) -> Self {
         Self {
             command: command.into(),
             args: Vec::new(),
         }
     }
+    /// Get the full command string with arguments.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use ej_io::runner::Runner;
+    ///
+    /// let runner = Runner::new("ls", vec!["-la"]);
+    /// assert_eq!(runner.get_full_command(), "ls -la");
+    /// ```
     pub fn get_full_command(&self) -> String {
         format!("{} {}", &self.command, &self.args.join(" "))
     }
@@ -64,9 +102,28 @@ impl Runner {
         thread::spawn(move || Runner::read_stream(tx, stream))
     }
 
-    // Starts the process and monitors its events
-    // It will read stdout and stderr until the child process finishes
-    // See `RunEvent` to see what events this function produces
+    /// Run the process with event monitoring.
+    ///
+    /// Starts the process and monitors its execution, sending events via the provided channel.
+    /// Reads stdout and stderr until the process finishes or is stopped.
+    ///
+    /// # Arguments
+    ///
+    /// * `tx` - Channel sender for RunEvent notifications
+    /// * `should_stop` - Atomic flag to signal process termination
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use ej_io::runner::{Runner, RunEvent};
+    /// use std::sync::{Arc, atomic::AtomicBool, mpsc};
+    ///
+    /// let runner = Runner::new("echo", vec!["Hello"]);
+    /// let (tx, rx) = mpsc::channel();
+    /// let should_stop = Arc::new(AtomicBool::new(false));
+    ///
+    /// let exit_status = runner.run(tx, should_stop);
+    /// ```
     pub fn run(&self, tx: Sender<RunEvent>, should_stop: Arc<AtomicBool>) -> Option<ExitStatus> {
         let mut process = spawn_process(&self.command, self.args.clone())
             .map_err(|err| {

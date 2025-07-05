@@ -1,3 +1,5 @@
+//! Low-level process management utilities.
+
 use std::{
     ffi::OsStr,
     io,
@@ -10,19 +12,42 @@ use std::{
     time::Duration,
 };
 
+/// Errors that can occur during process operations.
 #[derive(Debug)]
 pub enum ProcessError {
+    /// Failed to wait for child process.
     WaitChildFail,
+    /// Failed to spawn the process.
     SpawnProcessFail(io::Error),
+    /// Process was terminated.
     Quit,
 }
+
+/// Current status of a running process.
 pub enum ProcessStatus {
+    /// Process has completed with exit status.
     Done(ExitStatus),
+    /// Process is still running.
     Running,
 }
-/// Launches a sub process `cmd` using `args`
-/// Stdout and stderr are piped and can then be retrieved using the Child returned
-/// eg: child.stdout.take() and child.stderr.take()
+/// Spawn a new process with piped stdout and stderr.
+///
+/// Launches a subprocess with the given command and arguments.
+/// Both stdout and stderr are piped and can be accessed via the returned Child.
+///
+/// # Arguments
+///
+/// * `cmd` - Command to execute
+/// * `args` - Command line arguments
+///
+/// # Examples
+///
+/// ```rust
+/// use ej_io::process::spawn_process;
+///
+/// let mut child = spawn_process("echo", vec!["Hello".to_string()]).unwrap();
+/// let output = child.stdout.take().unwrap();
+/// ```
 pub fn spawn_process(cmd: &str, args: Vec<String>) -> Result<Child, io::Error> {
     Command::new(OsStr::new(&cmd))
         .args(args)
@@ -30,11 +55,38 @@ pub fn spawn_process(cmd: &str, args: Vec<String>) -> Result<Child, io::Error> {
         .stderr(Stdio::piped())
         .spawn()
 }
-/// Polls the process status without blocking
-/// Can be called in a loop as it will handling sleep so it doesn't use 100% of the cpu
-/// This function may never return ProcessStatus::Done if it blocks waiting for stdin
-/// In order to make sure we can actually kill a process that is blocked waiting for stdin,
-/// call `stop_child` and then `capture_exit_status`
+/// Check process status without blocking.
+///
+/// Polls the process status in a non-blocking manner. Includes a small sleep
+/// to prevent excessive CPU usage when called in a loop.
+///
+/// Note: This function may never return `ProcessStatus::Done` if the process
+/// is blocked waiting for stdin. Use `stop_child` and `capture_exit_status`
+/// to handle such cases.
+///
+/// # Arguments
+///
+/// * `child` - Mutable reference to the child process
+///
+/// # Examples
+///
+/// ```rust
+/// use ej_io::process::{spawn_process, get_process_status, ProcessStatus};
+///
+/// let mut child = spawn_process("sleep", vec!["1".to_string()]).unwrap();
+///
+/// loop {
+///     match get_process_status(&mut child).unwrap() {
+///         ProcessStatus::Done(exit_status) => {
+///             println!("Process finished with: {:?}", exit_status);
+///             break;
+///         }
+///         ProcessStatus::Running => {
+///             println!("Still running...");
+///         }
+///     }
+/// }
+/// ```
 pub fn get_process_status(child: &mut Child) -> Result<ProcessStatus, ProcessError> {
     match child.try_wait() {
         Ok(status) => match status {
@@ -48,19 +100,61 @@ pub fn get_process_status(child: &mut Child) -> Result<ProcessStatus, ProcessErr
     }
 }
 
-/// Kills Child
+/// Terminate a child process.
+///
+/// Sends a kill signal to the child process.
+///
+/// # Examples
+///
+/// ```rust
+/// use ej_io::process::{spawn_process, stop_child};
+///
+/// let mut child = spawn_process("sleep", vec!["60".to_string()]).unwrap();
+/// stop_child(&mut child).unwrap();
+/// ```
 pub fn stop_child(child: &mut Child) -> Result<(), io::Error> {
     child.kill()
 }
-/// Captures the child exit status
-/// This function will wait for the child process and drop the stdin pipe so if the child process
-/// is blocked waiting for stdin, this will unblock it
+/// Capture the exit status of a child process.
+///
+/// Waits for the child process to complete and returns its exit status.
+/// This will close the stdin pipe, which can unblock processes waiting for input.
+///
+/// # Examples
+///
+/// ```rust
+/// use ej_io::process::{spawn_process, capture_exit_status};
+///
+/// let mut child = spawn_process("echo", vec!["done".to_string()]).unwrap();
+/// let exit_status = capture_exit_status(&mut child).unwrap();
+/// assert!(exit_status.success());
+/// ```
 pub fn capture_exit_status(child: &mut Child) -> Result<ExitStatus, io::Error> {
     child.wait()
 }
 
-/// Waits for the child process to end
-/// While waiting, setting `should_stop` to true will kill the process
+/// Wait for a child process with cancellation support.
+///
+/// Waits for the child process to complete while periodically checking
+/// if it should be cancelled via the atomic boolean flag.
+///
+/// # Arguments
+///
+/// * `child` - Mutable reference to the child process
+/// * `should_stop` - Atomic flag to signal process termination
+///
+/// # Examples
+///
+/// ```rust
+/// use ej_io::process::{spawn_process, wait_child};
+/// use std::sync::{Arc, atomic::AtomicBool};
+///
+/// let mut child = spawn_process("sleep", vec!["1".to_string()]).unwrap();
+/// let should_stop = Arc::new(AtomicBool::new(false));
+///
+/// let exit_status = wait_child(&mut child, should_stop).unwrap();
+/// assert!(exit_status.success());
+/// ```
 pub fn wait_child(
     child: &mut Child,
     should_stop: Arc<AtomicBool>,
