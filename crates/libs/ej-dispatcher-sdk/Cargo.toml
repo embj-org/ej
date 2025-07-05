@@ -21,3 +21,6 @@ tokio-test = "0.4"
 
 [lints]
 workspace = true
+
+[package.metadata.cargo-machete]
+ignored = ["tokio-test"]
