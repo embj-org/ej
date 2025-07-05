@@ -591,6 +591,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "ej-auth"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "066d066f457ee27ab8c11c1529222e1b52de1e086f0dab28ff0a8b53d92bb733"
+dependencies = [
+ "argon2",
+ "jsonwebtoken",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror",
+]
+
+[[package]]
 name = "ej-builder-sdk"
 version = "0.3.0"
 dependencies = [
@@ -606,7 +621,7 @@ dependencies = [
 name = "ej-config"
 version = "0.3.0"
 dependencies = [
- "ej-auth",
+ "ej-auth 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde",
  "thiserror",
  "toml",
@@ -665,7 +680,7 @@ version = "0.3.0"
 dependencies = [
  "axum",
  "chrono",
- "ej-auth",
+ "ej-auth 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "ej-config",
  "ej-dispatcher-sdk",
  "ej-models",
@@ -696,7 +711,7 @@ dependencies = [
  "anyhow",
  "axum",
  "clap",
- "ej-auth",
+ "ej-auth 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "ej-builder-sdk",
  "ej-config",
  "ej-dispatcher-sdk",

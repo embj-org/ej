@@ -7,7 +7,7 @@ license.workspace = true
 readme = "README.md"
 
 [dependencies]
-ej-auth = { path = "../../libs/ej-auth" }
+ej-auth = "0.3.0"
 ej-web = { path = "../../libs/ej-web" }
 ej-io = { path = "../../libs/ej-io" }
 ej-builder-sdk = { path = "../../libs/ej-builder-sdk" }

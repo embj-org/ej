@@ -7,7 +7,7 @@ license.workspace = true
 readme = "README.md"
 
 [dependencies]
-ej-auth = { path = "../../libs/ej-auth" }
+ej-auth = "0.3.0"
 uuid = { version = "1.16.0" }
 serde = { version = "1.0.219", features = ["derive"] }
 tracing = "0.1.41"
