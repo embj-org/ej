@@ -741,6 +741,7 @@ dependencies = [
  "ej-models",
  "ej-web",
  "futures",
+ "futures-util",
  "serde_json",
  "thiserror",
  "tokio",
