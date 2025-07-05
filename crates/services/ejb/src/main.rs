@@ -1,3 +1,23 @@
+//! EJ Builder Service (ejb)
+//!
+//! A builder service that handles code compilation, validation, and execution
+//! for the EJ job execution system. The builder can run in different modes:
+//!
+//! - **Parse**: Parse and validate build configurations
+//! - **Checkout**: Check out source code from remote repositories  
+//! - **Validate**: Run build and validation processes
+//! - **Connect**: Connect to the EJD dispatcher service for job execution
+//!
+//! ## Communication Architecture
+//!
+//! EJB communicates with EJD (dispatcher) using:
+//! - **REST API**: For builder registration, login, and configuration upload
+//! - **WebSocket**: For real-time job assignment and result reporting
+//! - **Unix Sockets**: For local communication with child processes
+//!
+//! The builder authenticates with EJD using JWT tokens and maintains a persistent
+//! WebSocket connection to receive job assignments and report results.
+
 mod build;
 mod builder;
 mod checkout;
@@ -24,6 +44,26 @@ use crate::{
     connection::handle_connect,
 };
 
+/// Main entry point for the EJ Builder Service.
+///
+/// Initializes logging, parses command line arguments, creates a builder instance,
+/// and dispatches to the appropriate command handler based on the CLI arguments.
+///
+/// # Examples
+///
+/// ```bash
+/// # Parse build configuration
+/// ejb parse --config config.toml
+///
+/// # Check out source code
+/// ejb checkout --commit-hash abc123 --remote-url https://github.com/user/repo.git
+///
+/// # Validate build
+/// ejb validate --config config.toml
+///
+/// # Connect to dispatcher
+/// ejb connect --server http://dispatcher:8080 --id builder-123 --token builder_jwt_token
+/// ```
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::registry()

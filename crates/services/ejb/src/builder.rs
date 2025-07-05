@@ -1,3 +1,9 @@
+//! Builder core functionality for the EJ Builder Service.
+//!
+//! Provides the main `Builder` struct that manages configuration loading
+//! and local Unix socket communication for child processes. The Builder
+//! sets up a Unix socket server to communicate with spawned build/run scripts.
+
 use crate::prelude::*;
 use ej_builder_sdk::BuilderEvent;
 use ej_config::ej_config::{EjConfig, EjUserConfig};
@@ -14,14 +20,43 @@ use tokio::{
 };
 use tracing::{error, info, warn};
 
+/// Core builder instance that manages configuration and local communication.
+///
+/// The Builder handles local Unix socket communication with child processes
+/// (build and run scripts) spawned during job execution. It provides a
+/// communication channel for these processes to send events and data back
+/// to the main builder process.
 pub struct Builder {
+    /// The loaded EJ configuration.
     pub config: EjConfig,
+    /// Path to the configuration file.
     pub config_path: String,
+    /// Path to the Unix socket for communication.
     pub socket_path: String,
+    /// Channel sender for builder events.
     pub tx: Sender<BuilderEvent>,
 }
 
 impl Builder {
+    /// Creates a new builder instance.
+    ///
+    /// Loads the configuration from the specified path and sets up
+    /// local Unix socket communication for child processes.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use std::path::PathBuf;
+    /// use ejb::builder::Builder;
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let config_path = PathBuf::from("config.toml");
+    /// let socket_path = PathBuf::from("/tmp/ejb.sock");
+    ///
+    /// let builder = Builder::create(config_path, socket_path).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn create(config_path: PathBuf, socket_path: PathBuf) -> Result<Self> {
         let config = EjUserConfig::from_file(&config_path)?;
         let config = EjConfig::from_user_config(config);

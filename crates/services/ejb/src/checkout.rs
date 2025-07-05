@@ -1,3 +1,16 @@
+//! Source code checkout functionality for the EJ Builder Service.
+//!
+//! Handles checking out source code from remote repositories using Git.
+//! Supports both public and private repositories with token authentication.
+//!
+//! The checkout process:
+//! 1. Collects all unique library paths from board configurations
+//! 2. Performs deduplication to checkout each path only once
+//! 3. Builds the appropriate Git URL (with token if needed)
+//! 4. Clones the repository to the library path
+//! 5. Checks out the specified commit hash
+//! 6. Validates the checkout was successful
+
 use crate::{prelude::*, run_output::EjRunOutput};
 use ej_config::{ej_board_config::EjBoardConfig, ej_config::EjConfig};
 use ej_io::runner::{RunEvent, Runner};
@@ -110,6 +123,21 @@ fn checkout(
 
     Ok(())
 }
+
+/// Checks out source code for all board configurations.
+///
+/// Iterates through all board configurations in the EJ config and checks out
+/// the source code for each unique library path. Uses deduplication to ensure
+/// that each library path is only checked out once, even if multiple board
+/// configurations reference the same path.
+///
+/// # Arguments
+///
+/// * `config` - The EJ configuration containing board definitions
+/// * `commit_hash` - Git commit hash to check out
+/// * `remote_url` - Git repository URL
+/// * `remote_token` - Optional authentication token for private repositories
+/// * `output` - Output collector for logs and results
 pub fn checkout_all(
     config: &EjConfig,
     commit_hash: &str,
@@ -145,6 +173,18 @@ pub fn checkout_all(
 
     Ok(())
 }
+
+/// Handles the checkout command from CLI.
+///
+/// Checks out source code from the specified repository and commit hash,
+/// then displays the checkout logs to stdout.
+///
+/// # Examples
+///
+/// ```bash
+/// ejb checkout --commit-hash abc123 --remote-url https://github.com/user/repo.git
+/// ejb checkout --commit-hash def456 --remote-url https://github.com/user/private.git --remote-token token123
+/// ```
 pub fn handle_checkout(
     builder: &Builder,
     commit_hash: String,

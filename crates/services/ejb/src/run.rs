@@ -1,3 +1,18 @@
+//! Run execution functionality for the EJ Builder Service.
+//!
+//! Handles the run phase of job execution by executing run scripts
+//! for each board configuration. The run process:
+//!
+//! 1. Spawns parallel execution threads for each board
+//! 2. Within each board, executes configurations sequentially
+//! 3. Collects runtime output, logs, and results
+//! 4. Handles result file collection from specified paths
+//! 5. Reports run success/failure status
+//!
+//! Boards run in parallel to maximize throughput, but configurations
+//! within each board run sequentially. Run processes can be cancelled
+//! if a stop signal is received.
+
 use ej_config::ej_board::EjBoard;
 use ej_config::ej_config::EjConfig;
 use ej_io::runner::RunEvent;
@@ -14,6 +29,21 @@ use crate::common::{SpawnRunnerArgs, spawn_runner};
 use crate::prelude::*;
 use crate::run_output::EjRunOutput;
 
+/// Executes run scripts for all board configurations.
+///
+/// Runs the execution phase of job processing by spawning parallel threads
+/// for each board and executing their run scripts.
+///
+/// # Arguments
+///
+/// * `builder` - The builder instance containing configuration and paths
+/// * `config` - The EJ configuration with board definitions
+/// * `output` - Output collector for logs and results
+/// * `stop` - Atomic boolean for cancellation signal
+///
+/// # Returns
+///
+/// Returns `Ok(())` if all runs succeed, or the first error encountered.
 pub fn run(
     builder: &Builder,
     config: &EjConfig,

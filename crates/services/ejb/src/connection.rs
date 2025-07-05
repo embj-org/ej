@@ -1,3 +1,16 @@
+//! Connection management for communicating with the EJD dispatcher service.
+//!
+//! This module handles the complete connection lifecycle with EJD:
+//!
+//! 1. **Authentication**: Login to EJD using builder credentials
+//! 2. **Configuration Upload**: Send builder configuration to EJD  
+//! 3. **WebSocket Connection**: Establish persistent connection for job communication
+//! 4. **Job Execution**: Process incoming jobs (checkout, build, run)
+//! 5. **Result Reporting**: Send job results back to EJD via REST API
+//!
+//! The connection uses both REST API and WebSocket protocols to communicate
+//! with the dispatcher service efficiently.
+
 use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -28,6 +41,28 @@ use crate::checkout::checkout_all;
 use crate::logs::dump_logs_to_temporary_file;
 use crate::run::run;
 
+/// Handles the complete connection workflow with EJD dispatcher.
+///
+/// This function manages the entire lifecycle of connecting to and communicating
+/// with the EJD dispatcher service:
+///
+/// 1. Authenticates the builder with EJD using provided credentials
+/// 2. Uploads the builder configuration to EJD
+/// 3. Establishes a WebSocket connection for real-time communication
+/// 4. Processes incoming job assignments
+/// 5. Reports job results back to EJD
+///
+/// # Examples
+///
+/// ```bash
+/// # Connect to local dispatcher
+/// ejb connect --server http://localhost:8080 --id builder-123 --token jwt_token
+///
+/// # Or use environment variables
+/// export EJB_ID=builder-123
+/// export EJB_TOKEN=jwt_token
+/// ejb connect --server https://dispatcher.example.com
+/// ```
 pub async fn handle_connect(
     builder: Builder,
     server_url: &str,

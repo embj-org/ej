@@ -1,3 +1,18 @@
+//! Build execution functionality for the EJ Builder Service.
+//!
+//! Handles the build phase of job execution by running build scripts
+//! for each board configuration. The build process:
+//!
+//! 1. Iterates through all board configurations sequentially
+//! 2. Executes the build script for each configuration
+//! 3. Collects build output and logs
+//! 4. Reports build success/failure status
+//!
+//! All build configurations are completed before any run phase begins.
+//! Build scripts are executed sequentially to avoid resource conflicts,
+//! as each build script is expected to utilize all available CPU cores.
+//! Build processes can be cancelled if a stop signal is received.
+
 use std::sync::{Arc, atomic::AtomicBool, mpsc};
 
 use ej_config::ej_config::EjConfig;
@@ -9,6 +24,21 @@ use crate::prelude::*;
 use crate::run_output::EjRunOutput;
 use crate::{builder::Builder, common::spawn_runner};
 
+/// Executes build scripts for all board configurations.
+///
+/// Runs the build phase of job execution by executing build scripts
+/// for each board configuration in the provided EJ config.
+///
+/// # Arguments
+///
+/// * `builder` - The builder instance containing configuration and paths
+/// * `config` - The EJ configuration with board definitions
+/// * `output` - Output collector for logs and results
+/// * `stop` - Atomic boolean for cancellation signal
+///
+/// # Returns
+///
+/// Returns `Ok(())` if all builds succeed, or the first error encountered.
 pub fn build(
     builder: &Builder,
     config: &EjConfig,

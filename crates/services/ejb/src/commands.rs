@@ -1,3 +1,10 @@
+//! Command handlers for the EJ Builder Service.
+//!
+//! Contains handler functions for different CLI commands:
+//! - Configuration parsing and display
+//! - Build and validation execution
+//! - Connection management
+
 use std::io::stdout;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
@@ -9,6 +16,10 @@ use crate::prelude::*;
 use crate::run::run;
 use crate::run_output::EjRunOutput;
 
+/// Handles the parse command to display configuration information.
+///
+/// Parses and displays the loaded configuration including global settings,
+/// board information, and individual configuration details.
 pub fn handle_parse(builder: &Builder) -> Result<()> {
     let config = &builder.config;
 
@@ -34,6 +45,12 @@ pub fn handle_parse(builder: &Builder) -> Result<()> {
     Ok(())
 }
 
+/// Handles the validate command to run build and validation processes.
+///
+/// Executes build and run processes for all configurations in the loaded
+/// configuration file, collecting and displaying results.
+/// Useful for ensuring that the configuration is valid and working before connecting
+/// to the dispatcher service.
 pub fn handle_run_and_build(builder: &Builder) -> Result<()> {
     println!("Validating configuration file: {:?}", builder.config_path);
 

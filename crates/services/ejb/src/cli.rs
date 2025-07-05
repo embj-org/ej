@@ -1,6 +1,11 @@
+//! Command-line interface for the EJ Builder Service.
+//!
+//! Defines the CLI structure and commands for ejb.
+
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
+/// Command-line interface for the EJ Builder Service.
 #[derive(Parser)]
 #[command(name = "ejb")]
 #[command(about = "EJ Builder - Build and run applications across multiple configurations")]
@@ -25,6 +30,7 @@ pub struct Cli {
     pub command: Commands,
 }
 
+/// Available commands for the EJ Builder Service.
 #[derive(Subcommand)]
 pub enum Commands {
     /// Parse and display the configuration file
@@ -32,6 +38,7 @@ pub enum Commands {
     /// Parse and run every configuration
     Validate,
 
+    /// Check out source code from a remote repository
     Checkout {
         /// Git commit hash
         #[arg(long)]

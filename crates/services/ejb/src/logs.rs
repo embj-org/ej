@@ -1,9 +1,21 @@
+//! Log handling and output management for the EJ Builder Service.
+//!
+//! Provides functionality for:
+//! - Dumping execution logs to temporary files
+//! - Stripping ANSI escape codes from log output
+//! - Writing logs to various output destinations
+//! - Managing log file creation and cleanup
+
 use std::{fs::File, io::Write, path::PathBuf};
 
 use crate::{prelude::*, run_output::EjRunOutput};
 use strip_ansi_escapes::strip;
 use tracing::{error, info};
 
+/// Dumps execution logs to a temporary file.
+///
+/// Creates a temporary file and writes all collected logs to it.
+/// Useful for debugging and log persistence.
 pub fn dump_logs_to_temporary_file(output: &EjRunOutput) -> Result<()> {
     match create_temp_and_dump(output) {
         Ok(path) => {

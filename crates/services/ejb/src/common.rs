@@ -1,3 +1,8 @@
+//! Common utilities and types for the EJ Builder Service.
+//!
+//! Provides shared functionality used across different modules,
+//! including runner process management and argument handling.
+
 use std::{
     process::ExitStatus,
     sync::{Arc, atomic::AtomicBool, mpsc::Sender},
@@ -6,28 +11,56 @@ use std::{
 
 use ej_io::runner::{RunEvent, Runner};
 
+/// Arguments for spawning a runner process.
+///
+/// Contains all the necessary information to start a script execution
+/// process with the proper configuration and communication channels.
 #[derive(Debug, Clone)]
 pub struct SpawnRunnerArgs {
+    /// Name of the script to execute.
     pub script_name: String,
+    /// Name of the board configuration.
     pub config_name: String,
+    /// Path to the configuration file.
     pub config_path: String,
+    /// Path to the Unix socket for communication.
     pub socket_path: String,
 }
 
 impl SpawnRunnerArgs {
+    /// Builds a runner instance from the provided arguments.
+    ///
+    /// Creates a `Runner` with the script name and properly formatted
+    /// command-line arguments for the child process.
     fn build_runner(self) -> Runner {
         // Set arguments for child process
         // argv[1] will be the board config name so the same script can be used for every
         // config
-        // argv[2] will be the config path so the process can use this to find it's workspace
+        // argv[2] will be the config path so the process can use this to find its workspace
         // argv[3] is the path to the socket so that he can establish a socket connection with
-        // ourselfs
+        // ejb
         Runner::new(
             self.script_name,
             vec![self.config_name, self.config_path, self.socket_path],
         )
     }
 }
+
+/// Spawns a runner process in a separate thread.
+///
+/// Creates and starts a new runner process with the provided arguments,
+/// communication channels, and cancellation support.
+///
+/// # Arguments
+///
+/// * `args` - Runner configuration and script information
+/// * `tx` - Channel sender for receiving run events
+/// * `stop` - Atomic boolean for graceful cancellation
+///
+/// # Returns
+///
+/// Returns a `JoinHandle` that can be used to wait for the process completion
+/// and retrieve the exit status.
 pub fn spawn_runner(
     args: SpawnRunnerArgs,
     tx: Sender<RunEvent>,

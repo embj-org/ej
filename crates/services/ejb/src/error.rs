@@ -1,5 +1,11 @@
+//! Error types for the EJ Builder Service.
+//!
+//! Defines error variants that can occur during builder operations,
+//! including configuration errors, build failures, and connection issues.
+
 use std::any::Any;
 
+/// Errors that can occur in the EJ Builder Service.
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error(transparent)]
