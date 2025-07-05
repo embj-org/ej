@@ -5,6 +5,7 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 readme = "README.md"
+description = "Command-line interface for the EJ framework. Mainly used to setup and interface with EJD"
 
 [dependencies]
 

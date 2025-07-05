@@ -1,6 +1,6 @@
 # ej-cli
 
-Command-line interface for EJ dispatcher setup and job management.
+Command-line interface for the EJ framework. Mainly used to setup and interface with EJD.
 
 ## Overview
 
