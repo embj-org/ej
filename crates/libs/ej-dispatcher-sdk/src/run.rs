@@ -1,3 +1,5 @@
+//! Run job dispatch and management.
+
 use std::{collections::HashMap, fmt, path::Path, time::Duration};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines},
@@ -13,6 +15,38 @@ use crate::{
 };
 
 use crate::dispatch;
+/// Dispatch a build-and-run job to the dispatcher.
+///
+/// Creates a build-and-run job and sends it to the dispatcher via Unix socket.
+///
+/// # Arguments
+///
+/// * `socket_path` - Path to the dispatcher Unix socket
+/// * `commit_hash` - Git commit hash to build and run
+/// * `remote_url` - Git repository URL
+/// * `remote_token` - Optional authentication token for private repos
+/// * `max_duration` - Maximum time to wait for job completion
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// use ej_dispatcher_sdk::dispatch_run;
+/// use std::{path::Path, time::Duration};
+///
+/// # tokio_test::block_on(async {
+/// let job_result = dispatch_run(
+///     Path::new("/tmp/dispatcher.sock"),
+///     "abc123".to_string(),
+///     "https://github.com/user/repo.git".to_string(),
+///     None,
+///     Duration::from_secs(600),
+/// ).await.unwrap();
+///
+/// println!("Run success ? {}", job_result.success);
+/// println!("Run logs    {:#?}", job_result.logs);
+/// println!("Run results {:#?}", job_result.results);
+/// # });
+/// ```
 pub async fn dispatch_run(
     socket_path: &Path,
     commit_hash: String,

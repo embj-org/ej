@@ -1,3 +1,5 @@
+//! Unix socket message types for dispatcher communication.
+
 use std::{fmt, time::Duration};
 
 use serde::{Deserialize, Serialize};
@@ -7,18 +9,32 @@ use crate::{
     ejjob::{EjDeployableJob, EjJob, EjJobUpdate},
 };
 
+/// Messages sent from client to dispatcher via Unix socket.
 #[derive(Debug, Serialize, Deserialize)]
 pub enum EjSocketClientMessage {
+    /// Create root user request.
     CreateRootUser(EjClientPost),
-    Dispatch { job: EjJob, timeout: Duration },
+    /// Dispatch job request.
+    Dispatch {
+        /// Job configuration.
+        job: EjJob,
+        /// Maximum execution timeout.
+        timeout: Duration,
+    },
 }
 
+/// Messages sent from dispatcher to client via Unix socket.
 #[derive(Debug, Serialize, Deserialize)]
 pub enum EjSocketServerMessage {
+    /// Root user creation successful.
     CreateRootUserOk(EjClientApi),
+    /// Root user creation failed.
     CreateRootUserError,
+    /// Job dispatch successful.
     DispatchOk(EjDeployableJob),
+    /// Job status update.
     JobUpdate(EjJobUpdate),
+    /// General error message.
     Error(String),
 }
 

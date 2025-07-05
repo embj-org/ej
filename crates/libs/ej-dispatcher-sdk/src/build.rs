@@ -1,3 +1,5 @@
+//! Build job dispatch and management.
+
 use std::{fmt, path::Path, time::Duration};
 use tracing::{error, info};
 
@@ -16,6 +18,38 @@ use crate::{
     prelude::*,
 };
 
+/// Dispatch a build job to the dispatcher.
+///
+/// Creates a build-only job and sends it to the dispatcher via Unix socket.
+///
+/// # Arguments
+///
+/// * `socket_path` - Path to the dispatcher Unix socket
+/// * `commit_hash` - Git commit hash to build
+/// * `remote_url` - Git repository URL
+/// * `remote_token` - Optional authentication token for private repos
+/// * `max_duration` - Maximum time to wait for build completion
+///
+/// # Examples
+///
+///
+/// ```rust,no_run
+/// use ej_dispatcher_sdk::dispatch_build;
+/// use std::{path::Path, time::Duration};
+///
+/// # tokio_test::block_on(async {
+/// let job_result = dispatch_build(
+///     Path::new("/tmp/dispatcher.sock"),
+///     "abc123".to_string(),
+///     "https://github.com/user/repo.git".to_string(),
+///     None,
+///     Duration::from_secs(600),
+/// ).await.unwrap();
+///
+/// println!("Build success ? {}", job_result.success);
+/// println!("Build logs    {:#?}", job_result.logs);
+/// # });
+/// ```
 pub async fn dispatch_build(
     socket_path: &Path,
     commit_hash: String,
