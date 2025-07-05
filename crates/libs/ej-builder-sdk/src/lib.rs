@@ -1,3 +1,29 @@
+//! Builder SDK for the EJ framework.
+//!
+//! Provides communication interface between builders and the EJ dispatcher.
+//!
+//! # Usage
+//!
+//! ```rust, no_run
+//! use ej_builder_sdk::{BuilderSdk, BuilderEvent};
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let sdk = BuilderSdk::init(|event| {
+//!         match event {
+//!             BuilderEvent::Exit => {
+//!                 // Cleanup logic here
+//!                 println!("Received exit signal");
+//!                 std::process::exit(0);
+//!             }
+//!         }
+//!     }).await.unwrap();
+//!     
+//!     // Builder logic here
+//!     Ok(())
+//! }
+//! ```
+
 use std::env::args;
 
 use serde::{Deserialize, Serialize};
@@ -11,28 +37,59 @@ use tokio::{
 use tracing::info;
 
 pub mod error;
+/// Error type for builder SDK operations.
 pub use crate::error::Error;
 
+/// Result type for builder SDK operations.
 pub type Result<T> = core::result::Result<T, Error>;
 
+/// Events sent from the dispatcher to the builder.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum BuilderEvent {
+    /// Request to exit the builder.
     Exit,
 }
 
+/// Responses sent from the builder to the dispatcher.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum BuilderResponse {
+    /// Acknowledge receipt of an event.
     Ack,
 }
 
+/// Builder SDK for communicating with the EJ dispatcher.
+///
+/// Handles Unix socket communication and event processing between
+/// the builder and dispatcher.
 pub struct BuilderSdk {
-    /// The name of the current config being handled
+    /// The board configuration name.
     board_config_name: String,
-    /// The path to the config.toml provided to the builder
+    /// The path to the config.toml file.
     config_path: String,
 }
 
 impl BuilderSdk {
+    /// Initialize the builder SDK and start event processing.
+    ///
+    /// Sets up Unix socket communication with the dispatcher and starts
+    /// an async event loop to handle incoming events.
+    ///
+    /// # Arguments
+    ///
+    /// * `event_callback` - Function called when events are received
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use ej_builder_sdk::{BuilderSdk, BuilderEvent};
+    /// # tokio_test::block_on(async {
+    /// let sdk = BuilderSdk::init(|event| {
+    ///     match event {
+    ///         BuilderEvent::Exit => std::process::exit(0),
+    ///     }
+    /// }).await.unwrap();
+    /// # });
+    /// ```
     pub async fn init<F>(event_callback: F) -> Result<Self>
     where
         F: Fn(BuilderEvent) + Send + Sync + 'static,
@@ -50,10 +107,19 @@ impl BuilderSdk {
             config_path: args[2].clone(),
         })
     }
-
+    /// Get the board configuration name.
+    pub fn board_config_name(&self) -> &str {
+        &self.board_config_name
+    }
+    /// Get the path to the config.toml file.
+    pub fn config_path(&self) -> &str {
+        &self.config_path
+    }
+    /// Parse event data from JSON string.
     fn parse_event(payload: &str) -> Result<BuilderEvent> {
         Ok(serde_json::from_str(payload)?)
     }
+    /// Start the event loop for processing dispatcher messages.
     async fn start_event_loop<F>(stream: UnixStream, cb: F) -> Result<()>
     where
         F: Fn(BuilderEvent) + Send + Sync + 'static,
