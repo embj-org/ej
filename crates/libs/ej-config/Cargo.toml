@@ -8,7 +8,7 @@ readme = "README.md"
 
 [dependencies]
 ej-auth = "0.3.0"
-uuid = { version = "1.16", features = ["v4"] }
+uuid = { version = "1.16.0", features = ["v4", "serde"] }
 serde = { version = "1.0.219", features = ["derive"] }
 tracing = "0.1.41"
 thiserror = "2.0.12"
