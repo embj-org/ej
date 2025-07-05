@@ -11,7 +11,7 @@ ej-auth = "0.3.0"
 ej-io = { path = "../../libs/ej-io" }
 ej-builder-sdk = "0.3.0"
 ej-dispatcher-sdk = "0.3.0"
-ej-requests = { path = "../../libs/ej-requests" }
+ej-requests = "0.3.0"
 ej-config = "0.3.0"
 clap = { version = "4.5", features = ["derive"] }
 tokio = { version = "1.44.2", features = ["macros", "rt-multi-thread"] }
