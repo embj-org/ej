@@ -29,6 +29,7 @@ pub struct EjClientCreate {
 }
 
 impl EjClientCreate {
+    /// Saves the client to the database.
     pub fn save(self, connection: &DbConnection) -> Result<EjClient> {
         let conn = &mut connection.pool.get()?;
 
@@ -41,6 +42,7 @@ impl EjClientCreate {
 }
 
 impl EjClient {
+    /// Fetches a client by its ID.
     pub fn fetch_by_id(target: &Uuid, connection: &DbConnection) -> Result<Self> {
         let conn = &mut connection.pool.get()?;
 

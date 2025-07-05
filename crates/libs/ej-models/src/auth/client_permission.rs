@@ -1,3 +1,5 @@
+//! Client permission associations for authorization.
+
 use crate::{
     auth::permission::Permission, client::ejclient::EjClient, db::connection::DbConnection,
     prelude::*,
@@ -7,32 +9,44 @@ use diesel::prelude::*;
 use serde::Deserialize;
 use uuid::Uuid;
 
+/// Associates a client with a specific permission.
 #[derive(Identifiable, Selectable, Queryable, Associations, Debug)]
 #[diesel(belongs_to(EjClient, foreign_key = ejclient_id))]
 #[diesel(belongs_to(Permission))]
 #[diesel(table_name = crate::schema::client_permission)]
 #[diesel(primary_key(ejclient_id, permission_id))]
 pub struct ClientPermission {
+    /// The client ID.
     pub ejclient_id: Uuid,
+    /// The permission ID.
     pub permission_id: String,
+    /// When this association was created.
     pub created_at: DateTime<Utc>,
+    /// When this association was last updated.
     pub updated_at: DateTime<Utc>,
 }
 
+/// Data for creating a new client permission association.
 #[derive(Insertable, PartialEq, Debug, Clone, Deserialize)]
 #[diesel(table_name = crate::schema::client_permission)]
 pub struct NewClientPermission {
+    /// The client ID.
     pub ejclient_id: Uuid,
+    /// The permission ID.
     pub permission_id: String,
 }
 
+/// Composite key for identifying a client permission.
 #[derive(Deserialize)]
 pub struct ClientPermissionKey {
+    /// The client ID.
     pub ej_client_id: Uuid,
+    /// The permission ID.
     pub permission_id: String,
 }
 
 impl ClientPermission {
+    /// Creates a new client permission association.
     pub fn new(conn: &DbConnection, item: NewClientPermission) -> Result<Self> {
         let connection = &mut conn.pool.get()?;
         Ok(diesel::insert_into(crate::schema::client_permission::table)
@@ -41,6 +55,7 @@ impl ClientPermission {
             .get_result(connection)?)
     }
 
+    /// Fetches a client permission by its composite key.
     pub fn fetch_by_id(conn: &DbConnection, key: &ClientPermissionKey) -> Result<Self> {
         use crate::schema::client_permission::dsl::*;
         let conn = &mut conn.pool.get()?;
@@ -51,6 +66,7 @@ impl ClientPermission {
             .get_result(conn)?)
     }
 
+    /// Fetches all permissions for a given client.
     pub fn fetch_by_client<'a>(
         conn: &DbConnection,
         client: &'a EjClient,
@@ -66,6 +82,7 @@ impl ClientPermission {
         Ok((client, permissions))
     }
 
+    /// Fetches all clients that have a given permission.
     pub fn fetch_by_permission<'a>(
         conn: &DbConnection,
         permission: &'a Permission,

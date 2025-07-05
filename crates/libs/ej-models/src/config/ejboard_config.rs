@@ -1,3 +1,5 @@
+//! Board configuration model for managing individual board configurations.
+
 use crate::prelude::*;
 use crate::schema::ejboard_config::dsl::*;
 use crate::{config::ejboard::EjBoardDb, db::connection::DbConnection};

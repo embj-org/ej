@@ -1,3 +1,5 @@
+//! Board model for managing configuration boards.
+
 use crate::config::ejconfig::EjConfigDb;
 use crate::db::connection::DbConnection;
 use crate::prelude::*;

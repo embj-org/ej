@@ -1,3 +1,5 @@
+//! Job result management for storing execution outcomes.
+
 use crate::config::ejboard_config::EjBoardConfigDb;
 use crate::job::ejjob::EjJobDb;
 use crate::prelude::*;
@@ -7,28 +9,39 @@ use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+/// A job result storing the outcome of job execution.
 #[derive(Debug, Clone, Queryable, Selectable, PartialEq, Serialize, Deserialize)]
 #[diesel(table_name = crate::schema::ejjobresult)]
 #[diesel(belongs_to(EjJob))]
 #[diesel(belongs_to(EjBoardConfig))]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct EjJobResultDb {
+    /// The job this result belongs to.
     pub ejjob_id: Uuid,
+    /// The board config this result is associated with.
     pub ejboard_config_id: Uuid,
+    /// The result content.
     pub result: String,
+    /// When this result was created.
     pub created_at: DateTime<Utc>,
+    /// When this result was last updated.
     pub updated_at: DateTime<Utc>,
 }
 
+/// Data for creating a new job result.
 #[derive(Insertable, PartialEq, Debug, Clone, Deserialize)]
 #[diesel(table_name = crate::schema::ejjobresult)]
 pub struct EjJobResultCreate {
+    /// The job ID this result belongs to.
     pub ejjob_id: Uuid,
+    /// The board config ID this result is associated with.
     pub ejboard_config_id: Uuid,
+    /// The result content.
     pub result: String,
 }
 
 impl EjJobResultCreate {
+    /// Saves the job result to the database.
     pub fn save(self, connection: &DbConnection) -> Result<EjJobResultDb> {
         let conn = &mut connection.pool.get()?;
         Ok(diesel::insert_into(ejjobresult)
@@ -40,6 +53,7 @@ impl EjJobResultCreate {
 }
 
 impl EjJobResultDb {
+    /// Fetches a job result by its composite key (job_id, board_config_id).
     pub fn fetch_by_composite_key(
         job_id: &Uuid,
         board_config_id: &Uuid,
@@ -52,6 +66,7 @@ impl EjJobResultDb {
         Ok(job_result)
     }
 
+    /// Fetches all results for a specific job.
     pub fn fetch_by_job_id(target: &Uuid, connection: &DbConnection) -> Result<Vec<Self>> {
         let conn = &mut connection.pool.get()?;
         Ok(EjJobResultDb::by_job_id(target)
@@ -59,6 +74,7 @@ impl EjJobResultDb {
             .load(conn)?)
     }
 
+    /// Fetches all results for a specific board config.
     pub fn fetch_by_board_config_id(target: &Uuid, connection: &DbConnection) -> Result<Vec<Self>> {
         let conn = &mut connection.pool.get()?;
         Ok(EjJobResultDb::by_board_config_id(target)

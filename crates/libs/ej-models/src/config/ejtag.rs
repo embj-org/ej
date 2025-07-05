@@ -1,3 +1,5 @@
+//! Tag model for organizing and categorizing board configurations.
+
 use chrono::{DateTime, Utc};
 use diesel::prelude::*;
 use uuid::Uuid;

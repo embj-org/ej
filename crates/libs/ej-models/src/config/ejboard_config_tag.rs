@@ -1,3 +1,5 @@
+//! Board config tag associations for organizing configurations.
+
 use diesel::prelude::*;
 use uuid::Uuid;
 
@@ -7,6 +9,7 @@ use crate::{
     prelude::*,
 };
 
+/// Associates a board config with a tag for organization and filtering.
 #[derive(Queryable, Selectable, Associations, Debug, Clone)]
 #[diesel(belongs_to(EjBoardConfigDb, foreign_key = ejboard_config_id))]
 #[diesel(belongs_to(EjTag, foreign_key = ejtag_id))]
@@ -14,24 +17,32 @@ use crate::{
 #[diesel(primary_key(ejboard_config_id, ejtag_id))]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct EjBoardConfigTag {
+    /// The board config ID.
     pub ejboard_config_id: Uuid,
+    /// The tag ID.
     pub ejtag_id: Uuid,
 }
 
+/// Data for creating a new board config tag association.
 #[derive(Insertable, Debug)]
 #[diesel(table_name = crate::schema::ejboard_config_tag)]
 pub struct NewEjBoardConfigTag {
+    /// The board config ID to tag.
     pub ejboard_config_id: Uuid,
+    /// The tag ID to associate.
     pub ejtag_id: Uuid,
 }
 
 impl NewEjBoardConfigTag {
+    /// Creates a new board config tag association.
     pub fn new(ejboard_config_id: Uuid, ejtag_id: Uuid) -> Self {
         Self {
             ejboard_config_id,
             ejtag_id,
         }
     }
+
+    /// Saves the association to the database.
     pub fn save(self, connection: &mut DbConnection) -> Result<EjBoardConfigTag> {
         use crate::schema::ejboard_config_tag::dsl::*;
         let conn = &mut connection.pool.get()?;
@@ -43,8 +54,9 @@ impl NewEjBoardConfigTag {
             .into())
     }
 }
+
 impl EjBoardConfigTag {
-    /// Retrieve a board config with all its associated tags
+    /// Retrieve a board config with all its associated tags.
     pub fn fetch_by_board_config(
         board_config_id: Uuid,
         connection: &DbConnection,
@@ -66,7 +78,7 @@ impl EjBoardConfigTag {
         Ok((board_config, tags))
     }
 
-    /// Retrieve a tag with all board configs that have this tag
+    /// Retrieve a tag with all board configs that have this tag.
     pub fn fetch_by_tag(
         tag_id: Uuid,
         connection: &DbConnection,

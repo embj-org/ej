@@ -1,3 +1,5 @@
+//! Job model for managing job execution in the ej system.
+
 use crate::db::connection::DbConnection;
 use crate::job::ejjob_type::EjJobTypeDb;
 use crate::prelude::*;
@@ -10,30 +12,45 @@ use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+/// A job that can be executed by the ej system.
 #[derive(Debug, Clone, Queryable, Selectable, Identifiable, PartialEq, Serialize, Deserialize)]
 #[diesel(table_name = crate::schema::ejjob)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct EjJobDb {
+    /// Unique job ID.
     pub id: Uuid,
+    /// Git commit hash for the job.
     pub commit_hash: String,
+    /// Git remote URL for the job.
     pub remote_url: String,
+    /// The type of job (build, run, etc.).
     pub job_type: i32,
+    /// Current status of the job.
     pub status: i32,
+    /// When the job was dispatched for execution.
     pub dispatched_at: Option<DateTime<Utc>>,
+    /// When the job finished execution.
     pub finished_at: Option<DateTime<Utc>>,
+    /// When this job was created.
     pub created_at: DateTime<Utc>,
+    /// When this job was last updated.
     pub updated_at: DateTime<Utc>,
 }
 
+/// Data for creating a new job.
 #[derive(Insertable, PartialEq, Debug, Clone, Deserialize)]
 #[diesel(table_name = crate::schema::ejjob)]
 pub struct EjJobCreate {
+    /// Git commit hash for the job.
     pub commit_hash: String,
+    /// Git remote URL for the job.
     pub remote_url: String,
+    /// The type of job to create.
     pub job_type: i32,
 }
 
 impl EjJobCreate {
+    /// Saves the job to the database.
     pub fn save(self, connection: &DbConnection) -> Result<EjJobDb> {
         let conn = &mut connection.pool.get()?;
         Ok(diesel::insert_into(ejjob)
