@@ -5,6 +5,7 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 readme = "README.md"
+description = "The EJ Builder (EJB) application for managing build processes and board communication"
 
 [dependencies]
 ej-auth = "0.3.0"
