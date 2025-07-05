@@ -5,6 +5,7 @@ edition.workspace = true
 authors.workspace = true
 license-file = "LICENSE.plx"
 readme = "README.md"
+description = "Program management utilities for the EJ framework"
 
 [dependencies]
 
