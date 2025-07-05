@@ -579,7 +579,7 @@ checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
 
 [[package]]
 name = "ej-auth"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "argon2",
  "jsonwebtoken",
@@ -592,7 +592,7 @@ dependencies = [
 
 [[package]]
 name = "ej-builder-sdk"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -604,7 +604,7 @@ dependencies = [
 
 [[package]]
 name = "ej-config"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "ej-auth",
  "serde",
@@ -616,7 +616,7 @@ dependencies = [
 
 [[package]]
 name = "ej-dispatcher-sdk"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "ej-config",
  "serde",
@@ -631,14 +631,14 @@ dependencies = [
 
 [[package]]
 name = "ej-io"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "ntest",
 ]
 
 [[package]]
 name = "ej-models"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "diesel",
@@ -651,7 +651,7 @@ dependencies = [
 
 [[package]]
 name = "ej-requests"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "ej-web",
  "reqwest",
@@ -661,7 +661,7 @@ dependencies = [
 
 [[package]]
 name = "ej-web"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "axum",
  "chrono",
@@ -691,7 +691,7 @@ dependencies = [
 
 [[package]]
 name = "ejb"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -719,7 +719,7 @@ dependencies = [
 
 [[package]]
 name = "ejcli"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "clap",
  "ej-dispatcher-sdk",
@@ -737,7 +737,7 @@ dependencies = [
 
 [[package]]
 name = "ejd"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "axum",
  "chrono",
