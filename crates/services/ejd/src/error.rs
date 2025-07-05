@@ -1,5 +1,12 @@
+//! Error types for the EJ Dispatcher Service.
+//!
+//! Defines error variants that can occur during dispatcher operations,
+//! including communication errors, resource availability issues, and
+//! WebSocket connection problems.
+
 use crate::dispatcher::DispatcherEvent;
 
+/// Errors that can occur in the EJ Dispatcher Service.
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error(transparent)]

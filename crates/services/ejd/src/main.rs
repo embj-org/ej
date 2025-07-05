@@ -1,3 +1,17 @@
+//! EJ Dispatcher Service (ejd)
+//!
+//! The main dispatcher service that coordinates job execution across multiple builders.
+//! It provides:
+//!
+//! - **API Server**: REST API for job management and client operations
+//! - **WebSocket Server**: Real-time communication with connected builders
+//! - **Job Dispatcher**: Manages job queues and distributes work to available builders
+//! - **Database Integration**: Persists job state and client information
+//!
+//! The dispatcher service acts as the central coordinator in the EJ system,
+//! receiving job requests from clients and distributing them to connected builders
+//! for execution.
+
 use ej_models::db::{config::DbConfig, connection::DbConnection};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -10,6 +24,23 @@ mod error;
 mod prelude;
 mod socket;
 
+/// Main entry point for the EJ Dispatcher Service.
+///
+/// Initializes logging, sets up the database connection, and starts three
+/// concurrent services: the dispatcher core, API server, and WebSocket server.
+///
+/// The service runs until a shutdown signal is received or one of the
+/// components fails.
+///
+/// # Examples
+///
+/// The service is typically started with:
+/// ```bash
+/// export DATABASE_URL=postgres://user:password@localhost/ejd
+/// export JWT_SECRET=your_jwt_secret
+/// ejd
+/// ```
+///
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::registry()

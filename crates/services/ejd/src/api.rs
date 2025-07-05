@@ -1,3 +1,5 @@
+//! API server setup and routing for the EJ Dispatcher Service.
+
 use axum::{
     Json, Router,
     body::Bytes,
@@ -49,10 +51,22 @@ use crate::dispatcher::Dispatcher;
 use crate::prelude::*;
 use ej_web::prelude::Result as EjWebResult;
 
+/// Helper function to create versioned API paths.
 fn v1(path: &str) -> String {
     format!("/v1/{path}")
 }
 
+/// Sets up the API server with all routes and middleware.
+///
+/// Creates the HTTP server with:
+/// - Builder authentication and management routes
+/// - Client authentication and job dispatch routes
+/// - WebSocket endpoints for real-time communication
+/// - Middleware for authentication, logging, and CORS
+///
+/// # Returns
+///
+/// Returns a `JoinHandle` for the spawned HTTP server task.
 pub async fn setup_api(dispatcher: Dispatcher) -> Result<JoinHandle<Result<()>>> {
     let builder_routes = Router::new()
         .route(&v1("builder/ws"), any(builder_handler))
@@ -120,6 +134,9 @@ pub async fn setup_api(dispatcher: Dispatcher) -> Result<JoinHandle<Result<()>>>
     Ok(handle)
 }
 
+/// Creates a new client in the system.
+///
+/// Handles POST requests to create new clients with authentication credentials.
 async fn post_client(
     State(state): State<Dispatcher>,
     Json(payload): Json<EjClientPost>,
@@ -128,6 +145,10 @@ async fn post_client(
     Ok(Json(client))
 }
 
+/// Creates a new builder for an authenticated client.
+///
+/// Generates a builder instance with appropriate permissions and authentication token
+/// for the requesting client.
 async fn create_builder(
     State(mut state): State<Dispatcher>,
     ctx: Ctx,
@@ -135,6 +156,10 @@ async fn create_builder(
     Ok(Json(ctx.client.create_builder(&mut state.connection)?))
 }
 
+/// Handles client login requests.
+///
+/// Authenticates clients using their credentials and sets authentication cookies
+/// for subsequent requests.
 async fn login(
     state: State<Dispatcher>,
     cookies: Cookies,
@@ -143,14 +168,21 @@ async fn login(
     Ok(Json(login_client(&payload, &state.connection, &cookies)?))
 }
 
+/// Handles builder login requests.
+///
+/// Authenticates builders using their JWT tokens and sets authentication cookies
+/// for WebSocket and API communication.
 async fn login_builder_api(
     cookies: Cookies,
     Json(payload): Json<EjBuilderApi>,
 ) -> EjWebResult<Json<EjBuilderApi>> {
-    info!("Login builder: {}", payload.token);
     Ok(Json(login_builder(payload, &cookies)?))
 }
 
+/// Dispatches a job to all connected builders.
+///
+/// Creates a deployable job from the request and sends it to all available builders
+/// via WebSocket connections. Returns the created job for tracking.
 async fn dispatch_job(
     State(mut state): State<Dispatcher>,
     Json(payload): Json<EjJob>,
@@ -169,6 +201,10 @@ async fn dispatch_job(
     Ok(Json(job))
 }
 
+/// Handles builder configuration uploads.
+///
+/// Receives and stores configuration from authenticated builders, converting
+/// user configurations to the internal format.
 #[axum::debug_handler]
 async fn push_config(
     State(mut state): State<Dispatcher>,
@@ -180,6 +216,10 @@ async fn push_config(
     Ok(Json(config))
 }
 
+/// Handles job result submissions from builders.
+///
+/// Generic endpoint that accepts build or run results from builders and
+/// forwards them to the dispatcher for processing and storage.
 async fn job_result<T: EjJobResult>(
     State(mut dispatcher): State<Dispatcher>,
     Json(payload): Json<T>,
@@ -212,12 +252,14 @@ async fn builder_handler(
     ws.on_upgrade(move |socket| handle_socket(ctx, state, socket, addr))
 }
 
+/// RAII guard to automatically remove builders from the dispatcher when connections close.
 struct BuilderGuard {
     dispatcher: Dispatcher,
     index: usize,
 }
 
 impl Drop for BuilderGuard {
+    /// Automatically removes the builder from the dispatcher's builder list when dropped.
     fn drop(&mut self) {
         let builders = self.dispatcher.builders.clone();
         let index = self.index;

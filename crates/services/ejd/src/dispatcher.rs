@@ -1,3 +1,16 @@
+//! Core dispatcher logic for the EJ Dispatcher Service.
+//!
+//! The dispatcher manages job queues, builder connections, and coordinates
+//! the execution of jobs across available builders. It handles:
+//!
+//! - Job queuing and distribution
+//! - Builder connection management
+//! - Job timeout and cancellation
+//! - Result collection and persistence
+//!
+//! The dispatcher runs as a background task that processes events and
+//! manages the lifecycle of jobs from submission to completion.
+
 use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
 use std::time::Duration;
@@ -27,6 +40,7 @@ use tokio::{
 use tracing::{debug, error, info, trace, warn};
 use uuid::Uuid;
 
+/// Events that can be sent to the dispatcher.
 #[derive(Debug)]
 pub enum DispatcherEvent {
     DispatchJob {
@@ -70,9 +84,26 @@ struct RunningJob {
 }
 
 impl DispatchedJob {
+    /// Creates a new DispatchedJob with job data, update channel, and timeout.
+    ///
+    /// # Arguments
+    /// * `data` - The deployable job configuration
+    /// * `tx` - Channel for sending job progress updates
+    /// * `timeout` - Maximum duration to wait for job completion
+    ///
+    /// # Returns
+    /// A new DispatchedJob instance ready to be started
     pub fn new(data: EjDeployableJob, tx: Sender<EjJobUpdate>, timeout: Duration) -> Self {
         Self { data, tx, timeout }
     }
+    /// Starts the job execution by creating a RunningJob with timeout management.
+    ///
+    /// # Arguments
+    /// * `dispatcher_tx` - Channel for sending events back to the dispatcher
+    /// * `deployed_builders` - Set of builder IDs that will execute this job
+    ///
+    /// # Returns
+    /// A RunningJob instance with active timeout management
     pub fn start(
         self,
         dispatcher_tx: Sender<DispatcherEvent>,
@@ -82,6 +113,18 @@ impl DispatchedJob {
     }
 }
 impl RunningJob {
+    /// Creates a new RunningJob from a DispatchedJob with timeout management.
+    ///
+    /// This function sets up the timeout task that will send a timeout event
+    /// if the job doesn't complete within the specified duration.
+    ///
+    /// # Arguments
+    /// * `job` - The dispatched job to start running
+    /// * `dispatcher_tx` - Channel for sending timeout events
+    /// * `deployed_builders` - Set of builders assigned to this job
+    ///
+    /// # Returns
+    /// A RunningJob with active timeout monitoring
     fn new(
         job: DispatchedJob,
         dispatcher_tx: Sender<DispatcherEvent>,
@@ -100,6 +143,15 @@ impl RunningJob {
             dispatcher_tx,
         }
     }
+    /// Creates a background task that sends a timeout event after the specified duration.
+    ///
+    /// # Arguments
+    /// * `tx` - Channel for sending the timeout event
+    /// * `job_id` - ID of the job to timeout
+    /// * `timeout` - Duration to wait before sending timeout
+    ///
+    /// # Returns
+    /// A JoinHandle for the timeout task that can be cancelled
     fn create_task(tx: Sender<DispatcherEvent>, job_id: Uuid, timeout: Duration) -> JoinHandle<()> {
         tokio::spawn(async move {
             sleep(timeout).await;
@@ -109,6 +161,10 @@ impl RunningJob {
         })
     }
 
+    /// Renews the timeout for this job by cancelling the old timeout and creating a new one.
+    ///
+    /// This is useful when job progress is detected and the timeout should be extended.
+    /// The timeout duration remains the same as originally configured.
     fn renew_timeout(&mut self) {
         self.timeout_handle.abort();
         let timeout = self.timeout;
@@ -131,6 +187,13 @@ enum DispatcherState {
 }
 
 impl DispatcherPrivate {
+    /// Creates a new dispatcher instance and starts its background processing task.
+    ///
+    /// # Arguments
+    /// * `connection` - Database connection for job and builder management
+    ///
+    /// # Returns
+    /// A tuple containing the dispatcher interface and its background task handle
     fn create(connection: DbConnection) -> (Dispatcher, JoinHandle<()>) {
         let (tx, rx) = channel(32);
         let dispatcher = Dispatcher::new(connection, tx);
@@ -144,6 +207,18 @@ impl DispatcherPrivate {
         (dispatcher, handle)
     }
 
+    /// Starts the background thread that processes dispatcher events.
+    ///
+    /// This function runs the main event loop that handles:
+    /// - Job dispatch requests
+    /// - Job completion notifications
+    /// - Job timeout events
+    ///
+    /// # Arguments
+    /// * `rx` - Receiver for dispatcher events
+    ///
+    /// # Returns
+    /// A JoinHandle for the background task
     fn start_thread(mut self, mut rx: Receiver<DispatcherEvent>) -> JoinHandle<()> {
         tokio::spawn(async move {
             while let Some(message) = rx.recv().await {
@@ -171,6 +246,14 @@ impl DispatcherPrivate {
             }
         })
     }
+    /// Dispatches a job to a single builder via WebSocket.
+    ///
+    /// # Arguments
+    /// * `job` - The job to dispatch
+    /// * `builder` - The connected builder to send the job to
+    ///
+    /// # Returns
+    /// `true` if the job was successfully sent, `false` if there was an error
     async fn dispatch_job_to_single_builder(
         job: EjDeployableJob,
         builder: &EjConnectedBuilder,
@@ -187,6 +270,16 @@ impl DispatcherPrivate {
         trace!("Builder dispatched {:?}", builder);
         return true;
     }
+    /// Dispatches a job to all available builders and transitions to running state.
+    ///
+    /// This function:
+    /// - Updates job status to running in the database
+    /// - Sends the job to all connected builders
+    /// - Tracks which builders successfully received the job
+    /// - Transitions to DispatchedJob state or cancels if no builders available
+    ///
+    /// # Arguments
+    /// * `job` - The job to dispatch to builders
     async fn dispatch_job(&mut self, mut job: DispatchedJob) {
         let jobdb = EjJobDb::fetch_by_id(&job.data.id, &self.dispatcher.connection).unwrap();
         if let Err(err) = jobdb.update_status(EjJobStatus::running(), &self.dispatcher.connection) {
@@ -238,6 +331,16 @@ impl DispatcherPrivate {
             };
         }
     }
+    /// Handles incoming job dispatch requests by either starting the job or queuing it.
+    ///
+    /// If the dispatcher is idle, the job starts immediately.
+    /// If another job is running, the new job is added to the pending queue.
+    ///
+    /// # Arguments
+    /// * `job` - The job to dispatch
+    ///
+    /// # Returns
+    /// Result indicating success or failure
     async fn handle_dispatch_job(&mut self, mut job: DispatchedJob) -> Result<()> {
         match self.state {
             DispatcherState::Idle => self.dispatch_job(job).await,
@@ -258,12 +361,31 @@ impl DispatcherPrivate {
         }
         Ok(())
     }
+    /// Sends a job update to the update channel, logging any errors.
+    ///
+    /// # Arguments
+    /// * `tx` - The channel to send the update through
+    /// * `update` - The job update to send
     async fn send_job_update(tx: &Sender<EjJobUpdate>, update: EjJobUpdate) {
         if let Err(err) = tx.send(update).await {
             error!("Failed to send job update through internal channel {err}");
         }
     }
 
+    /// Handles job completion by collecting results and sending final updates.
+    ///
+    /// This function:
+    /// - Fetches job logs from the database
+    /// - Builds result objects with board configuration data
+    /// - Sends appropriate completion updates (BuildFinished or RunFinished)
+    /// - Handles different job types (Build vs BuildAndRun)
+    ///
+    /// # Arguments
+    /// * `job` - The completed running job
+    /// * `connection` - Database connection for fetching results
+    ///
+    /// # Returns
+    /// Result indicating success or failure of the completion handling
     async fn on_job_completed(job: &RunningJob, connection: &DbConnection) -> Result<()> {
         info!("Job {} of type {} complete", job.data.id, job.data.job_type);
         let jobdb = EjJobDb::fetch_by_id(&job.data.id, &connection)?;
@@ -304,6 +426,20 @@ impl DispatcherPrivate {
         }
         Ok(())
     }
+    /// Handles the completion of a job by a specific builder.
+    ///
+    /// This function manages the state transitions when builders complete jobs:
+    /// - If in idle state, logs that the builder finished a stale job
+    /// - If actively running a job, removes the builder from the deployed set
+    /// - When all builders complete, sends final results and processes next job
+    /// - Handles cases where builders complete unexpected jobs
+    ///
+    /// # Arguments
+    /// * `completed_job_id` - The ID of the job that was completed
+    /// * `builder_id` - The ID of the builder that completed the job
+    ///
+    /// # Returns
+    /// Result indicating success or failure of handling the completion
     async fn handle_job_completed(
         &mut self,
         completed_job_id: Uuid,
@@ -396,6 +532,22 @@ impl DispatcherPrivate {
         }
         Ok(())
     }
+    /// Cancels a running job across all deployed builders.
+    ///
+    /// This function:
+    /// - Sends cancel messages to all builders running the job
+    /// - Updates the job status in the database
+    /// - Sends cancellation updates to subscribed clients
+    /// - Handles communication errors gracefully
+    ///
+    /// # Arguments
+    /// * `builders` - Shared reference to connected builders
+    /// * `job` - The running job to cancel
+    /// * `connection` - Database connection for status updates
+    /// * `reason` - The reason for cancellation (timeout, user request, etc.)
+    ///
+    /// # Returns
+    /// Result indicating success or failure of the cancellation
     async fn cancel_running_job(
         builders: &Arc<Mutex<Vec<EjConnectedBuilder>>>,
         job: &mut RunningJob,
@@ -424,6 +576,21 @@ impl DispatcherPrivate {
         DispatcherPrivate::cancel_job(&job.data.id, &mut job.job_update_tx, connection, reason)
             .await
     }
+    /// Cancels a job by updating its status and notifying clients.
+    ///
+    /// This function:
+    /// - Sends a cancellation update to the job's update channel
+    /// - Updates the job status to cancelled in the database
+    /// - Logs any database update errors
+    ///
+    /// # Arguments
+    /// * `job_id` - The ID of the job to cancel
+    /// * `tx` - The update channel for the job
+    /// * `connection` - Database connection for status updates
+    /// * `reason` - The reason for cancellation
+    ///
+    /// # Returns
+    /// Result indicating success or failure of the cancellation
     async fn cancel_job(
         job_id: &Uuid,
         tx: &mut Sender<EjJobUpdate>,
@@ -438,6 +605,19 @@ impl DispatcherPrivate {
         Ok(())
     }
 
+    /// Handles job timeout by cancelling the job if it's currently running.
+    ///
+    /// This function:
+    /// - Checks if the dispatcher is currently running the timed-out job
+    /// - If idle, ignores the timeout as the job was already completed/cancelled
+    /// - If running a different job, ignores the timeout for the old job
+    /// - If running the matching job, cancels it with a timeout reason
+    ///
+    /// # Arguments
+    /// * `job_id` - The ID of the job that timed out
+    ///
+    /// # Returns
+    /// Result indicating success or failure of handling the timeout
     async fn handle_job_timeout(&mut self, job_id: Uuid) -> Result<()> {
         match self.state {
             DispatcherState::Idle => {
@@ -463,6 +643,14 @@ impl DispatcherPrivate {
     }
 }
 impl Dispatcher {
+    /// Creates a new Dispatcher instance with database connection and event channel.
+    ///
+    /// # Arguments
+    /// * `connection` - Database connection for job and builder management
+    /// * `tx` - Event channel for sending dispatcher events
+    ///
+    /// # Returns
+    /// A new Dispatcher instance
     fn new(connection: DbConnection, tx: Sender<DispatcherEvent>) -> Self {
         Self {
             connection,
@@ -470,10 +658,61 @@ impl Dispatcher {
             tx,
         }
     }
+    /// Creates a new Dispatcher and spawns its background task.
+    ///
+    /// This function creates both the public dispatcher interface and its
+    /// private background task that handles job scheduling and builder management.
+    ///
+    /// # Arguments
+    /// * `connection` - Database connection for job and builder management
+    ///
+    /// # Returns
+    /// A tuple containing:
+    /// - The public Dispatcher interface
+    /// - A JoinHandle for the background dispatcher task
+    ///
+    /// # Example
+    /// ```rust
+    /// let (dispatcher, task_handle) = Dispatcher::create(db_connection);
+    /// // Use dispatcher for job management
+    /// // task_handle will run the background processing
+    /// ```
     pub fn create(connection: DbConnection) -> (Self, JoinHandle<()>) {
         DispatcherPrivate::create(connection)
     }
 
+    /// Dispatches a job for execution by available builders.
+    ///
+    /// This function:
+    /// - Validates that builders are available
+    /// - Creates a deployable job record in the database
+    /// - Sends the job to the dispatcher's background task for execution
+    /// - Returns immediately with the deployable job details
+    ///
+    /// # Arguments
+    /// * `job` - The job configuration to execute
+    /// * `job_update_tx` - Channel for receiving job progress updates
+    /// * `timeout` - Maximum duration to wait for job completion
+    ///
+    /// # Returns
+    /// Result containing the deployable job information, or an error if:
+    /// - No builders are available
+    /// - Database errors occur
+    /// - Communication with background task fails
+    ///
+    /// # Example
+    /// ```rust
+    /// let (update_tx, update_rx) = mpsc::channel(100);
+    /// let timeout = Duration::from_secs(300);
+    ///
+    /// let deployable_job = dispatcher.dispatch_job(
+    ///     job_config,
+    ///     update_tx,
+    ///     timeout
+    /// ).await?;
+    ///
+    /// // Listen for updates on update_rx
+    /// ```
     pub async fn dispatch_job(
         &mut self,
         job: EjJob,
@@ -495,6 +734,31 @@ impl Dispatcher {
         Ok(job)
     }
 
+    /// Handles job result submission from builders.
+    ///
+    /// This function:
+    /// - Saves the job result to the database
+    /// - Notifies the dispatcher's background task of job completion
+    /// - Triggers result processing and potential next job dispatch
+    ///
+    /// # Arguments
+    /// * `result` - The job result from a builder (build or run result)
+    ///
+    /// # Returns
+    /// Result indicating success or failure of result processing
+    ///
+    /// # Example
+    /// ```rust
+    /// // When a builder completes a job
+    /// let build_result = EjBuildJobResult {
+    ///     job_id: job.id,
+    ///     builder_id: builder.id,
+    ///     success: true,
+    ///     // ... other fields
+    /// };
+    ///
+    /// dispatcher.on_job_result(build_result).await?;
+    /// ```
     pub async fn on_job_result(&mut self, result: impl EjJobResult) -> Result<()> {
         let job_id = result.job_id();
         let builder_id = result.builder_id();
