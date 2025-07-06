@@ -24,7 +24,7 @@
 //! }
 //! ```
 
-use std::env::args;
+use std::{env::args, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 use tokio::{
@@ -151,8 +151,9 @@ impl BuilderSdk {
         &self.board_config_name
     }
     /// Get the path to the config.toml file.
-    pub fn config_path(&self) -> &str {
-        &self.config_path
+    pub fn config_path(&self) -> PathBuf {
+        PathBuf::from(&self.config_path)
+    }
     /// Get the action this script should take
     pub fn action(&self) -> Action {
         self.action
