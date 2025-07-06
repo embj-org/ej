@@ -36,12 +36,9 @@ use tokio::{
 };
 use tracing::info;
 
+use crate::prelude::*;
 pub mod error;
-/// Error type for builder SDK operations.
-pub use crate::error::Error;
-
-/// Result type for builder SDK operations.
-pub type Result<T> = core::result::Result<T, Error>;
+pub mod prelude;
 
 /// Events sent from the dispatcher to the builder.
 #[derive(Debug, Clone, Serialize, Deserialize)]
