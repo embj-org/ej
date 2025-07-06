@@ -70,12 +70,11 @@ impl EjJobDb {
         Ok(job.into())
     }
 
-    pub fn fetch_by_commit_hash(target: &str, connection: &DbConnection) -> Result<Self> {
+    pub fn fetch_by_commit_hash(target: &str, connection: &DbConnection) -> Result<Vec<Self>> {
         let conn = &mut connection.pool.get()?;
-        let job: EjJobDb = EjJobDb::by_commit_hash(target)
+        Ok(EjJobDb::by_commit_hash(target)
             .select(EjJobDb::as_select())
-            .get_result(conn)?;
-        Ok(job.into())
+            .load(conn)?)
     }
 
     pub fn fetch_status(&self, connection: &DbConnection) -> Result<EjJobStatus> {

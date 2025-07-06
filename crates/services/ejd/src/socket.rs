@@ -12,11 +12,19 @@
 //! The socket interface is primarily used by the ejcli tool for setup and
 //! testing operations that cannot be performed through the regular HTTP API.
 
+use std::collections::HashMap;
+
+use ej_dispatcher_sdk::EjRunResult;
+use ej_dispatcher_sdk::ejjob::{EjJobApi, EjJobStatus};
 use ej_dispatcher_sdk::ejsocket_message::{EjSocketClientMessage, EjSocketServerMessage};
 use ej_models::auth::client_permission::{ClientPermission, NewClientPermission};
 use ej_models::auth::permission::Permission;
 use ej_models::client::ejclient::EjClient;
+use ej_models::job::ejjob::EjJobDb;
+use ej_models::job::ejjob_logs::EjJobLog;
+use ej_models::job::ejjob_results::EjJobResultDb;
 use ej_web::ejclient::create_client;
+use ej_web::ejconfig::board_config_db_to_board_config_api;
 use ej_web::prelude::*;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixStream;
@@ -117,6 +125,56 @@ async fn handle_message(
                     Ok(())
                 }
             }
+        }
+        EjSocketClientMessage::FetchJobs { commit_hash } => {
+            let jobs = EjJobDb::fetch_by_commit_hash(&commit_hash, &dispatcher.connection)?;
+
+            let jobs: Vec<EjJobApi> = jobs
+                .into_iter()
+                .map(|job| {
+                    let wjob: ej_web::prelude::W<EjJobApi> = job.into();
+                    wjob.0
+                })
+                .collect();
+
+            send_message(writer, EjSocketServerMessage::Jobs(jobs)).await
+        }
+
+        EjSocketClientMessage::FetchJobResults { job_id } => {
+            // TODO: Duplicated code
+            let job = EjJobDb::fetch_by_id(&job_id, &dispatcher.connection)?;
+            let status: EjJobStatus = job.status.into();
+            let logsdb =
+                EjJobLog::fetch_with_board_config_by_job_id(&job_id, &dispatcher.connection)?;
+            let resultsdb =
+                EjJobResultDb::fetch_with_board_config_by_job_id(&job_id, &dispatcher.connection)?;
+            let mut logs = Vec::new();
+            let mut results = Vec::new();
+            let mut configs = HashMap::new();
+            for (logdb, board_config_db) in logsdb {
+                let config_api =
+                    board_config_db_to_board_config_api(board_config_db, &dispatcher.connection)?;
+                configs.insert(config_api.id, config_api.clone());
+                logs.push((config_api, logdb.log));
+            }
+            for (resultdb, board_config_db) in resultsdb {
+                let config_api = match configs.get(&board_config_db.id) {
+                    Some(config) => config.clone(),
+                    None => board_config_db_to_board_config_api(
+                        board_config_db,
+                        &dispatcher.connection,
+                    )?,
+                };
+                results.push((config_api, resultdb.result));
+            }
+
+            let result = EjRunResult {
+                logs,
+                results,
+                success: status == EjJobStatus::Success,
+            };
+
+            send_message(writer, EjSocketServerMessage::RunResult(result)).await
         }
     }
 }

@@ -122,7 +122,7 @@ fn run_all_configs(
     for board_config in board.configs.iter() {
         let (tx, rx) = channel();
 
-        args.script_name = board_config.build_script.clone();
+        args.script_name = board_config.run_script.clone();
         args.config_name = board_config.name.clone();
         let handle = spawn_runner(args.clone(), tx, Arc::clone(&stop));
 

@@ -43,8 +43,11 @@ pub mod ejjob;
 pub mod ejsocket_message;
 pub mod ejws_message;
 pub mod error;
+pub mod fetch_jobs;
+pub mod fetch_run_result;
 pub mod prelude;
 pub mod run;
+mod socket;
 
 /// Dispatch a job to the EJ dispatcher.
 ///

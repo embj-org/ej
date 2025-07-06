@@ -18,6 +18,8 @@ use cli::{Cli, Commands};
 use commands::{handle_create_builder, handle_create_root_user, handle_dispatch};
 use ej_dispatcher_sdk::{ejjob::EjJobType, prelude::*};
 
+use crate::commands::{handle_fetch_jobs, handle_fetch_run_results};
+
 /// Main entry point for the EJ CLI testing and setup tool.
 ///
 /// Parses command line arguments and dispatches to the appropriate handler
@@ -48,7 +50,6 @@ async fn main() -> Result<()> {
         Commands::DispatchBuild { socket, job } => {
             handle_dispatch(&socket, job, EjJobType::Build).await
         }
-
         Commands::DispatchRun { socket, job } => {
             handle_dispatch(&socket, job, EjJobType::BuildAndRun).await
         }
@@ -56,6 +57,13 @@ async fn main() -> Result<()> {
             handle_create_root_user(&socket, client).await
         }
         Commands::CreateBuilder { server, client } => handle_create_builder(&server, client).await,
+        Commands::FetchJobs {
+            socket,
+            commit_hash,
+        } => handle_fetch_jobs(&socket, commit_hash).await,
+        Commands::FetchRunResult { socket, job_id } => {
+            handle_fetch_run_results(&socket, job_id).await
+        }
     };
 
     if let Err(ref e) = result {

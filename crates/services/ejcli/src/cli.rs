@@ -5,6 +5,7 @@
 
 use clap::{Args, Parser, Subcommand};
 use std::{path::PathBuf, time::Duration};
+use uuid::Uuid;
 
 /// EJ Command Line Interface for testing and system setup.
 #[derive(Parser)]
@@ -54,6 +55,26 @@ pub enum Commands {
 
         #[command(flatten)]
         client: UserArgs,
+    },
+
+    /// Fetchs jobs associated to a commit hash
+    FetchJobs {
+        /// Server socket
+        #[arg(short, long)]
+        socket: PathBuf,
+
+        #[arg(long)]
+        commit_hash: String,
+    },
+
+    /// Fetchs jobs associated to a commit hash
+    FetchRunResult {
+        /// Server socket
+        #[arg(short, long)]
+        socket: PathBuf,
+
+        #[arg(long)]
+        job_id: Uuid,
     },
 }
 

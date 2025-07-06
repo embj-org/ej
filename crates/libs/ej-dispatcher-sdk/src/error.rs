@@ -1,5 +1,7 @@
 //! Dispatcher SDK error types.
 
+use crate::ejsocket_message::EjSocketServerMessage;
+
 /// Dispatcher SDK errors.
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -9,6 +11,10 @@ pub enum Error {
     /// Run operation failed.
     #[error("Run Error")]
     RunError,
+
+    /// Unexpected Socket Message
+    #[error("Unexpected message from socket")]
+    UnexpectedSocketMessage(EjSocketServerMessage),
 
     /// I/O operation failed.
     #[error(transparent)]

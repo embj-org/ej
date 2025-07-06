@@ -1,20 +1,24 @@
 use ej_dispatcher_sdk::ejbuilder::EjBuilderApi;
 use ej_dispatcher_sdk::ejclient::{EjClientLogin, EjClientLoginRequest, EjClientPost};
 use ej_dispatcher_sdk::ejsocket_message::{EjSocketClientMessage, EjSocketServerMessage};
+use ej_dispatcher_sdk::fetch_run_result::fetch_run_result;
 use ej_dispatcher_sdk::run::dispatch_run;
 use ej_dispatcher_sdk::{build::dispatch_build, ejjob::EjJobType};
 use ej_requests::ApiClient;
+use std::cmp::Ordering;
+use std::path::Path;
 use std::{collections::HashMap, path::PathBuf, time::Duration};
 use tokio::{
     io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
     net::UnixStream,
 };
+use uuid::Uuid;
 
 use crate::cli::{DispatchArgs, UserArgs};
-use ej_dispatcher_sdk::prelude::*;
+use ej_dispatcher_sdk::{fetch_jobs::fetch_jobs, prelude::*};
 
 pub async fn handle_dispatch(
-    socket_path: &PathBuf,
+    socket_path: &Path,
     dispatch: DispatchArgs,
     job_type: EjJobType,
 ) -> Result<()> {
@@ -43,7 +47,7 @@ pub async fn handle_dispatch(
     }
     Ok(())
 }
-pub async fn handle_create_root_user(socket_path: &PathBuf, args: UserArgs) -> Result<()> {
+pub async fn handle_create_root_user(socket_path: &Path, args: UserArgs) -> Result<()> {
     println!("Creating user");
     let mut stream = UnixStream::connect(socket_path).await?;
 
@@ -90,5 +94,32 @@ pub async fn handle_create_builder(server: &str, args: UserArgs) -> Result<()> {
     println!("export EJB_ID={}", builder.id);
     println!("export EJB_TOKEN={}", builder.token);
 
+    Ok(())
+}
+
+pub async fn handle_fetch_jobs(socket: &Path, commit_hash: String) -> Result<()> {
+    let mut jobs = fetch_jobs(&socket, commit_hash.clone()).await?;
+    println!(
+        "Found {} job(s) associated with {} commit",
+        jobs.len(),
+        commit_hash
+    );
+
+    jobs.sort_by(|a, b| match (&a.finished_at, &b.finished_at) {
+        (Some(a_finished), Some(b_finished)) => a_finished.cmp(b_finished),
+        (Some(_), None) => Ordering::Less,
+        (None, Some(_)) => Ordering::Greater,
+        (None, None) => Ordering::Equal,
+    });
+
+    for job in jobs {
+        println!("{}", job);
+    }
+    Ok(())
+}
+
+pub async fn handle_fetch_run_results(socket: &Path, job_id: Uuid) -> Result<()> {
+    let run_result = fetch_run_result(&socket, job_id).await?;
+    println!("{}", run_result);
     Ok(())
 }

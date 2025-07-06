@@ -2,8 +2,9 @@
 
 pub mod results;
 
-use std::fmt;
+use std::{cmp::Ordering, fmt};
 
+use chrono::{DateTime, Utc};
 use ej_config::ej_board_config::EjBoardConfigApi;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -22,6 +23,34 @@ impl From<i32> for EjJobType {
         match value {
             0 => EjJobType::Build,
             1 => EjJobType::BuildAndRun,
+            _ => unreachable!(),
+        }
+    }
+}
+
+/// Type of job to execute.
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub enum EjJobStatus {
+    /// Job not started yet
+    NotStarted = 0,
+    /// Job running
+    Running = 1,
+    /// Job success
+    Success = 2,
+    /// Job failed
+    Failed = 3,
+    /// Job cancelled
+    Cancelled = 4,
+}
+
+impl From<i32> for EjJobStatus {
+    fn from(value: i32) -> Self {
+        match value {
+            0 => EjJobStatus::NotStarted,
+            1 => EjJobStatus::Running,
+            2 => EjJobStatus::Success,
+            3 => EjJobStatus::Failed,
+            4 => EjJobStatus::Cancelled,
             _ => unreachable!(),
         }
     }
@@ -52,6 +81,48 @@ impl EjJob {
             remote_url: remote_url.into(),
             remote_token,
         }
+    }
+}
+
+/// Job presentation model.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EjJobApi {
+    /// Unique job ID.
+    pub id: Uuid,
+    /// Git commit hash for the job.
+    pub commit_hash: String,
+    /// Git remote URL for the job.
+    pub remote_url: String,
+    /// The type of job (build, run, etc.).
+    pub job_type: EjJobType,
+    /// Current status of the job.
+    pub status: EjJobStatus,
+    /// When the job was dispatched for execution.
+    pub dispatched_at: Option<DateTime<Utc>>,
+    /// When the job finished execution.
+    pub finished_at: Option<DateTime<Utc>>,
+}
+impl EjJobApi {
+    /// Sort jobs by finished timestamp, with most recently finished first.
+    /// Jobs without a finished timestamp are placed at the end.
+    pub fn sort_by_finished_desc(jobs: &mut Vec<EjJobApi>) {
+        jobs.sort_by(|a, b| match (&a.finished_at, &b.finished_at) {
+            (Some(a_finished), Some(b_finished)) => b_finished.cmp(a_finished),
+            (Some(_), None) => Ordering::Less,
+            (None, Some(_)) => Ordering::Greater,
+            (None, None) => Ordering::Equal,
+        });
+    }
+
+    /// Sort jobs by finished timestamp, with oldest finished first.
+    /// Jobs without a finished timestamp are placed at the end.
+    pub fn sort_by_finished_asc(jobs: &mut Vec<EjJobApi>) {
+        jobs.sort_by(|a, b| match (&a.finished_at, &b.finished_at) {
+            (Some(a_finished), Some(b_finished)) => a_finished.cmp(b_finished),
+            (Some(_), None) => Ordering::Less,
+            (None, Some(_)) => Ordering::Greater,
+            (None, None) => Ordering::Equal,
+        });
     }
 }
 
@@ -125,6 +196,18 @@ impl fmt::Display for EjJobType {
         match self {
             EjJobType::Build => write!(f, "Build"),
             EjJobType::BuildAndRun => write!(f, "Build and Run"),
+        }
+    }
+}
+
+impl fmt::Display for EjJobStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            EjJobStatus::NotStarted => write!(f, "Not started"),
+            EjJobStatus::Running => write!(f, "Runnign"),
+            EjJobStatus::Success => write!(f, "Success"),
+            EjJobStatus::Failed => write!(f, "Failed"),
+            EjJobStatus::Cancelled => write!(f, "Cancelled"),
         }
     }
 }
@@ -233,5 +316,33 @@ impl fmt::Display for EjRunResult {
             writeln!(f, "{}", result)?;
         }
         writeln!(f, "=======================================")
+    }
+}
+
+impl fmt::Display for EjJobApi {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Job {} [{}] - {} ({})\n  Commit: {}\n  Remote: {}\n  Dispatched: {}\n  Finished: {}",
+            self.id,
+            self.job_type,
+            self.status,
+            match (&self.dispatched_at, &self.finished_at) {
+                (Some(dispatched), Some(finished)) => {
+                    let duration = *finished - *dispatched;
+                    format!("took {}s", duration.num_seconds())
+                }
+                (Some(_), None) => "running".to_string(),
+                (None, _) => "pending".to_string(),
+            },
+            self.commit_hash,
+            self.remote_url,
+            self.dispatched_at
+                .map(|dt| dt.format("%Y-%m-%d %H:%M:%S UTC").to_string())
+                .unwrap_or_else(|| "Not dispatched".to_string()),
+            self.finished_at
+                .map(|dt| dt.format("%Y-%m-%d %H:%M:%S UTC").to_string())
+                .unwrap_or_else(|| "Not finished".to_string())
+        )
     }
 }

@@ -1,7 +1,7 @@
 //! Job management utilities for web handlers.
 
 use ej_dispatcher_sdk::ejjob::{
-    EjDeployableJob, EjJob, EjJobType,
+    EjDeployableJob, EjJob, EjJobApi, EjJobType,
     results::{EjBuilderBuildResult, EjBuilderRunResult},
 };
 use ej_models::{
@@ -57,6 +57,20 @@ pub fn create_job(ejjob: EjJob, connection: &mut DbConnection) -> Result<EjDeplo
         remote_url: job.remote_url,
         remote_token: ejjob.remote_token,
     })
+}
+
+impl From<EjJobDb> for W<EjJobApi> {
+    fn from(value: EjJobDb) -> Self {
+        Self(EjJobApi {
+            id: value.id,
+            commit_hash: value.commit_hash,
+            remote_url: value.remote_url,
+            job_type: value.job_type.into(),
+            status: value.status.into(),
+            dispatched_at: value.dispatched_at,
+            finished_at: value.finished_at,
+        })
+    }
 }
 
 /// Implementation of EjJobResult for build job results.

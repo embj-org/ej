@@ -406,6 +406,7 @@ impl DispatcherPrivate {
             )
             .await;
         } else {
+            // TODO: Duplicated code
             let resultsdb =
                 EjJobResultDb::fetch_with_board_config_by_job_id(&jobdb.id, &connection)?;
             let mut results = Vec::new();
