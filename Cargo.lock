@@ -582,7 +582,7 @@ dependencies = [
 
 [[package]]
 name = "ej-auth"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "argon2",
  "jsonwebtoken",
@@ -594,7 +594,7 @@ dependencies = [
 
 [[package]]
 name = "ej-builder-sdk"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -606,9 +606,9 @@ dependencies = [
 
 [[package]]
 name = "ej-builder-sdk"
-version = "0.3.1"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3fed3ea5497792b1fb18507ce88b295e0c83c0dd7e18aa0a110b81a173d85336"
+checksum = "ee1d2b8b637f59cbee056ecd27f296e304b89d77727b03b83fdb177ed067364f"
 dependencies = [
  "serde",
  "serde_json",
@@ -633,7 +633,7 @@ dependencies = [
 
 [[package]]
 name = "ej-config"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "ej-auth 0.3.0",
  "serde",
@@ -660,7 +660,7 @@ dependencies = [
 
 [[package]]
 name = "ej-dispatcher-sdk"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "ej-config 0.3.0",
  "serde",
@@ -681,14 +681,14 @@ checksum = "e6b6ee2944d2b1471953e13a5c912cbd3650ebca03cb76d6e314b595faca5e21"
 
 [[package]]
 name = "ej-io"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "ntest",
 ]
 
 [[package]]
 name = "ej-models"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "chrono",
  "diesel",
@@ -712,7 +712,7 @@ dependencies = [
 
 [[package]]
 name = "ej-requests"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "reqwest",
  "serde",
@@ -721,7 +721,7 @@ dependencies = [
 
 [[package]]
 name = "ej-web"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "axum",
  "chrono",
@@ -741,11 +741,11 @@ dependencies = [
 
 [[package]]
 name = "ejb"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "clap",
  "ej-auth 0.3.0",
- "ej-builder-sdk 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ej-builder-sdk 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "ej-config 0.3.0",
  "ej-dispatcher-sdk 0.3.0",
  "ej-io 0.3.0",
@@ -763,7 +763,7 @@ dependencies = [
 
 [[package]]
 name = "ejcli"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "clap",
  "ej-dispatcher-sdk 0.3.0",
@@ -777,7 +777,7 @@ dependencies = [
 
 [[package]]
 name = "ejd"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "axum",
  "diesel",
