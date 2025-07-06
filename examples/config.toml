@@ -16,10 +16,11 @@ name = "Rpi3 Wayland"
 tags = ["wayland", "arm64"]
 # Path to build and run scripts, you can either have one script per board config or you can
 #  use the arguments passed to the script to know which action to take, arguments are as follows:
-# argv[1]: will be the action the runner should take should be either `build` or `run`
-# argv[2] will be the board config name
-# argv[3] will be the config path
-# argv[4] is the path to the socket so that he can establish a socket connection with ejb
+# argv[1] is the action the runner should take should be either `build` or `run`
+# argv[2] is the config (.toml) path
+# argv[3] is the board name
+# argv[4] is the board config name
+# argv[5] is the path to the socket so that he can establish a socket connection with ejb
 build_script = "/home/work/rpi/wayland/scripts/build_rpi4_wayland.sh"
 run_script = "/home/work/rpi/wayland/scripts/run_rpi4_wayland.sh"
 results_path = "/home/work/rpi/wayland/results/results.json"

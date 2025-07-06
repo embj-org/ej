@@ -22,10 +22,12 @@ pub struct SpawnRunnerArgs {
     pub script_name: String,
     /// Action the child process should take
     pub action: Action,
-    /// Name of the board configuration.
-    pub config_name: String,
     /// Path to the configuration file.
     pub config_path: String,
+    /// Name of the board.
+    pub board_name: String,
+    /// Name of the board configuration.
+    pub config_name: String,
     /// Path to the Unix socket for communication.
     pub socket_path: String,
 }
@@ -37,18 +39,18 @@ impl SpawnRunnerArgs {
     /// command-line arguments for the child process.
     fn build_runner(self) -> Runner {
         // Set arguments for child process
-        // argv[1] will be the action the runner should take should be either `build` or `run`
-        // argv[2] will be the board config name so the same script can be used for every
-        // config
-        // argv[3] will be the config path so the process can use this to find its workspace
-        // argv[4] is the path to the socket so that he can establish a socket connection with
-        // ejb
+        // argv[1] is the action the runner should take should be either `build` or `run`
+        // argv[2] is the config (.toml) path
+        // argv[3] is the board name
+        // argv[4] is the board config name
+        // argv[5] is the path to the socket so that he can establish a socket connection with ejb
         Runner::new(
             self.script_name,
             vec![
                 String::from(self.action),
-                self.config_name,
                 self.config_path,
+                self.board_name,
+                self.config_name,
                 self.socket_path,
             ],
         )

@@ -94,6 +94,8 @@ impl From<Action> for String {
 /// Handles Unix socket communication and event processing between
 /// the builder and dispatcher.
 pub struct BuilderSdk {
+    /// The board name.
+    board_name: String,
     /// The board configuration name.
     board_config_name: String,
     /// The path to the config.toml file.
@@ -129,31 +131,37 @@ impl BuilderSdk {
         F: Fn(BuilderEvent) + Send + Sync + 'static,
     {
         let args: Vec<String> = std::env::args().into_iter().collect();
-        if args.len() < 5 {
-            return Err(Error::MissingArgs(5, args.len()));
+        if args.len() < 6 {
+            return Err(Error::MissingArgs(6, args.len()));
         }
 
-        let stream = UnixStream::connect(&args[4]).await?;
-        tokio::spawn(async move { BuilderSdk::start_event_loop(stream, event_callback) });
         let action: Action = TryFrom::<&str>::try_from(&args[1])?;
+
+        let stream = UnixStream::connect(&args[5]).await?;
+        tokio::spawn(async move { BuilderSdk::start_event_loop(stream, event_callback) });
 
         Ok(Self {
             config_path: args[2].clone(),
-            board_config_name: args[3].clone(),
+            board_name: args[3].clone(),
+            board_config_name: args[4].clone(),
             action,
         })
     }
-    /// Get the board configuration name.
-    pub fn board_config_name(&self) -> &str {
-        &self.board_config_name
+    /// Get the action this script should take
+    pub fn action(&self) -> Action {
+        self.action
     }
     /// Get the path to the config.toml file.
     pub fn config_path(&self) -> PathBuf {
         PathBuf::from(&self.config_path)
     }
-    /// Get the action this script should take
-    pub fn action(&self) -> Action {
-        self.action
+    /// Get the board name.
+    pub fn board_name(&self) -> &str {
+        &self.board_name
+    }
+    /// Get the board configuration name.
+    pub fn board_config_name(&self) -> &str {
+        &self.board_config_name
     }
     /// Parse event data from JSON string.
     fn parse_event(payload: &str) -> Result<BuilderEvent> {

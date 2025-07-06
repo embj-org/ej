@@ -59,6 +59,7 @@ pub fn run(
         let args = SpawnRunnerArgs {
             script_name: String::new(),
             action: Action::Run,
+            board_name: board.name.clone(),
             config_name: String::new(),
             config_path: builder.config_path.clone(),
             socket_path: builder.socket_path.clone(),

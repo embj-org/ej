@@ -57,6 +57,7 @@ pub fn build(
             let args = SpawnRunnerArgs {
                 script_name: board_config.build_script.clone(),
                 action: Action::Build,
+                board_name: board.name.clone(),
                 config_name: board_config.name.clone(),
                 config_path: builder.config_path.clone(),
                 socket_path: builder.socket_path.clone(),
