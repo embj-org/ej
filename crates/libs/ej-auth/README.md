@@ -15,11 +15,8 @@ Authentication utilities for the EJ framework, including JWT management and pass
 
 ## Installation
 
-Add this to your `Cargo.toml`:
-
-```toml
-[dependencies]
-ej-auth = "0.3.0"
+```bash
+cargo add ej-auth
 ```
 
 ## Part of EJ Framework

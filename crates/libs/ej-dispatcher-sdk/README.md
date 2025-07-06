@@ -16,11 +16,8 @@ SDK for creating applications that interface with EJD.
 
 ## Installation
 
-Add this to your `Cargo.toml`:
-
-```toml
-[dependencies]
-ej-dispatcher-sdk = "0.3.3"
+```bash
+cargo add ej-dispatcher-sdk
 ```
 
 ## Part of EJ Framework

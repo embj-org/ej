@@ -17,11 +17,8 @@ HTTP request handling utilities for the EJ framework.
 
 ## Installation
 
-Add this to your `Cargo.toml`:
-
-```toml
-[dependencies]
-ej-requests = "0.3.0"
+```bash
+cargo add ej-requests
 ```
 
 ## Part of EJ Framework

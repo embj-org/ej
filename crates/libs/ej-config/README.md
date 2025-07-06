@@ -16,11 +16,8 @@ Configuration structures and utilities for EJ builder configurations.
 
 ## Installation
 
-Add this to your `Cargo.toml`:
-
-```toml
-[dependencies]
-ej-config = "0.3.0"
+```bash
+cargo add ej-config
 ```
 
 ## Usage

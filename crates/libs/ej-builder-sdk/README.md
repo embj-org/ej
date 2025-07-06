@@ -16,11 +16,8 @@ SDK for creating applications that interface with EJB.
 
 ## Installation
 
-Add this to your `Cargo.toml`:
-
-```toml
-[dependencies]
-ej-builder-sdk = "0.3.0"
+```bash
+cargo add ej-builder-sdk
 ```
 
 ## Part of EJ Framework

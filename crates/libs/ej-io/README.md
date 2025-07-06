@@ -16,11 +16,8 @@ Program management utilities for the EJ framework.
 
 ## Installation
 
-Add this to your `Cargo.toml`:
-
-```toml
-[dependencies]
-ej-io = "0.3.0"
+```bash
+cargo add ej-io
 ```
 
 ## Part of EJ Framework

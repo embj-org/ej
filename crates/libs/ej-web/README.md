@@ -16,11 +16,8 @@ Private web utilities and components for the EJ dispatcher.
 
 ## Installation
 
-Add this to your `Cargo.toml`:
-
-```toml
-[dependencies]
-ej-web = "0.3.0"
+```bash
+cargo add ej-web
 ```
 
 ## Note
