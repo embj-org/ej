@@ -23,11 +23,6 @@
 //! ```
 
 use crate::{ejsocket_message::EjSocketClientMessage, prelude::*};
-pub use build::dispatch_build;
-pub use ejjob::{
-    EjBuildResult, EjDeployableJob, EjJob, EjJobCancelReason, EjJobType, EjJobUpdate, EjRunResult,
-};
-pub use run::dispatch_run;
 use std::{collections::HashMap, fmt, path::Path, time::Duration};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines},
@@ -35,6 +30,17 @@ use tokio::{
 };
 use tracing::{error, info};
 use uuid::Uuid;
+
+pub use crate::{
+    build::dispatch_build,
+    ejjob::{
+        EjBuildResult, EjDeployableJob, EjJob, EjJobCancelReason, EjJobType, EjJobUpdate,
+        EjRunResult,
+    },
+    fetch_jobs::fetch_jobs,
+    fetch_run_result::fetch_run_result,
+    run::dispatch_run,
+};
 
 pub mod build;
 pub mod ejbuilder;
