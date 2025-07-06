@@ -9,6 +9,7 @@ use std::{
     thread::{self, JoinHandle},
 };
 
+use ej_builder_sdk::Action;
 use ej_io::runner::{RunEvent, Runner};
 
 /// Arguments for spawning a runner process.
@@ -19,6 +20,8 @@ use ej_io::runner::{RunEvent, Runner};
 pub struct SpawnRunnerArgs {
     /// Name of the script to execute.
     pub script_name: String,
+    /// Action the child process should take
+    pub action: Action,
     /// Name of the board configuration.
     pub config_name: String,
     /// Path to the configuration file.
@@ -34,14 +37,20 @@ impl SpawnRunnerArgs {
     /// command-line arguments for the child process.
     fn build_runner(self) -> Runner {
         // Set arguments for child process
-        // argv[1] will be the board config name so the same script can be used for every
+        // argv[1] will be the action the runner should take should be either `build` or `run`
+        // argv[2] will be the board config name so the same script can be used for every
         // config
-        // argv[2] will be the config path so the process can use this to find its workspace
-        // argv[3] is the path to the socket so that he can establish a socket connection with
+        // argv[3] will be the config path so the process can use this to find its workspace
+        // argv[4] is the path to the socket so that he can establish a socket connection with
         // ejb
         Runner::new(
             self.script_name,
-            vec![self.config_name, self.config_path, self.socket_path],
+            vec![
+                String::from(self.action),
+                self.config_name,
+                self.config_path,
+                self.socket_path,
+            ],
         )
     }
 }

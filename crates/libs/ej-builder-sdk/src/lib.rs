@@ -56,6 +56,41 @@ pub enum BuilderResponse {
     /// Acknowledge receipt of an event.
     Ack,
 }
+#[derive(Debug, Clone, Copy)]
+pub enum Action {
+    Build,
+    Run,
+}
+
+impl TryFrom<&str> for Action {
+    type Error = Error;
+
+    fn try_from(value: &str) -> Result<Self> {
+        if value == "build" {
+            return Ok(Action::Build);
+        }
+        if value == "run" {
+            return Ok(Action::Run);
+        }
+        Err(Error::InvalidAction(String::from(value)))
+    }
+}
+
+impl From<Action> for &'static str {
+    fn from(value: Action) -> Self {
+        match value {
+            Action::Build => "build",
+            Action::Run => "run",
+        }
+    }
+}
+
+impl From<Action> for String {
+    fn from(value: Action) -> Self {
+        let value: &str = value.into();
+        Self::from(value)
+    }
+}
 
 /// Builder SDK for communicating with the EJ dispatcher.
 ///
@@ -66,6 +101,8 @@ pub struct BuilderSdk {
     board_config_name: String,
     /// The path to the config.toml file.
     config_path: String,
+    /// The action the script should take.
+    action: Action,
 }
 
 impl BuilderSdk {
@@ -95,16 +132,18 @@ impl BuilderSdk {
         F: Fn(BuilderEvent) + Send + Sync + 'static,
     {
         let args: Vec<String> = std::env::args().into_iter().collect();
-        if args.len() < 4 {
-            return Err(Error::MissingArgs(3, args.len()));
+        if args.len() < 5 {
+            return Err(Error::MissingArgs(5, args.len()));
         }
 
-        let stream = UnixStream::connect(&args[3]).await?;
+        let stream = UnixStream::connect(&args[4]).await?;
         tokio::spawn(async move { BuilderSdk::start_event_loop(stream, event_callback) });
+        let action: Action = TryFrom::<&str>::try_from(&args[1])?;
 
         Ok(Self {
-            board_config_name: args[1].clone(),
             config_path: args[2].clone(),
+            board_config_name: args[3].clone(),
+            action,
         })
     }
     /// Get the board configuration name.
@@ -114,6 +153,9 @@ impl BuilderSdk {
     /// Get the path to the config.toml file.
     pub fn config_path(&self) -> &str {
         &self.config_path
+    /// Get the action this script should take
+    pub fn action(&self) -> Action {
+        self.action
     }
     /// Parse event data from JSON string.
     fn parse_event(payload: &str) -> Result<BuilderEvent> {

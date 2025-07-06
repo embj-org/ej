@@ -13,6 +13,7 @@
 //! within each board run sequentially. Run processes can be cancelled
 //! if a stop signal is received.
 
+use ej_builder_sdk::Action;
 use ej_config::ej_board::EjBoard;
 use ej_config::ej_config::EjConfig;
 use ej_io::runner::RunEvent;
@@ -57,6 +58,7 @@ pub fn run(
 
         let args = SpawnRunnerArgs {
             script_name: String::new(),
+            action: Action::Run,
             config_name: String::new(),
             config_path: builder.config_path.clone(),
             socket_path: builder.socket_path.clone(),

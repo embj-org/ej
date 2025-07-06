@@ -15,6 +15,7 @@
 
 use std::sync::{Arc, atomic::AtomicBool, mpsc};
 
+use ej_builder_sdk::Action;
 use ej_config::ej_config::EjConfig;
 use ej_io::runner::RunEvent;
 use tracing::{error, info};
@@ -55,6 +56,7 @@ pub fn build(
 
             let args = SpawnRunnerArgs {
                 script_name: board_config.build_script.clone(),
+                action: Action::Build,
                 config_name: board_config.name.clone(),
                 config_path: builder.config_path.clone(),
                 socket_path: builder.socket_path.clone(),
