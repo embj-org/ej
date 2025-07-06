@@ -568,18 +568,6 @@ checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
 [[package]]
 name = "ej-auth"
 version = "0.3.0"
-dependencies = [
- "argon2",
- "jsonwebtoken",
- "rand 0.8.5",
- "serde",
- "sha2",
- "thiserror",
-]
-
-[[package]]
-name = "ej-auth"
-version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "066d066f457ee27ab8c11c1529222e1b52de1e086f0dab28ff0a8b53d92bb733"
 dependencies = [
@@ -593,8 +581,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "ej-auth"
+version = "0.3.1"
+dependencies = [
+ "argon2",
+ "jsonwebtoken",
+ "rand 0.8.5",
+ "serde",
+ "sha2",
+ "thiserror",
+]
+
+[[package]]
 name = "ej-builder-sdk"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -606,9 +606,9 @@ dependencies = [
 
 [[package]]
 name = "ej-builder-sdk"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5963e43302951f52365f9b2b67742eb492ebfd826e986b9c22c461c35a1c3849"
+checksum = "3fed3ea5497792b1fb18507ce88b295e0c83c0dd7e18aa0a110b81a173d85336"
 dependencies = [
  "serde",
  "serde_json",
@@ -620,8 +620,10 @@ dependencies = [
 [[package]]
 name = "ej-config"
 version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "41e4d1e816f46afe61bc5fb2c4dc90b9e5a5b72060e49d9eb85fe26dcb3a277f"
 dependencies = [
- "ej-auth 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ej-auth 0.3.0",
  "serde",
  "thiserror",
  "toml",
@@ -631,11 +633,9 @@ dependencies = [
 
 [[package]]
 name = "ej-config"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41e4d1e816f46afe61bc5fb2c4dc90b9e5a5b72060e49d9eb85fe26dcb3a277f"
+version = "0.3.1"
 dependencies = [
- "ej-auth 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ej-auth 0.3.0",
  "serde",
  "thiserror",
  "toml",
@@ -646,8 +646,23 @@ dependencies = [
 [[package]]
 name = "ej-dispatcher-sdk"
 version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "49feb704020d4419a672fbf92e645b553f6aa81ed08b9970ec208a223424d85f"
 dependencies = [
- "ej-config 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ej-config 0.3.0",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "ej-dispatcher-sdk"
+version = "0.3.1"
+dependencies = [
+ "ej-config 0.3.0",
  "serde",
  "serde_json",
  "tempfile",
@@ -659,36 +674,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "ej-dispatcher-sdk"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "49feb704020d4419a672fbf92e645b553f6aa81ed08b9970ec208a223424d85f"
-dependencies = [
- "ej-config 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tracing",
- "uuid",
-]
-
-[[package]]
-name = "ej-io"
-version = "0.3.0"
-dependencies = [
- "ntest",
-]
-
-[[package]]
 name = "ej-io"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6b6ee2944d2b1471953e13a5c912cbd3650ebca03cb76d6e314b595faca5e21"
 
 [[package]]
+name = "ej-io"
+version = "0.3.1"
+dependencies = [
+ "ntest",
+]
+
+[[package]]
 name = "ej-models"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "chrono",
  "diesel",
@@ -697,15 +697,6 @@ dependencies = [
  "thiserror",
  "tracing",
  "uuid",
-]
-
-[[package]]
-name = "ej-requests"
-version = "0.3.0"
-dependencies = [
- "reqwest",
- "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -720,14 +711,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "ej-requests"
+version = "0.3.1"
+dependencies = [
+ "reqwest",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "ej-web"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "axum",
  "chrono",
- "ej-auth 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "ej-config 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "ej-dispatcher-sdk 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ej-auth 0.3.0",
+ "ej-config 0.3.0",
+ "ej-dispatcher-sdk 0.3.0",
  "ej-models",
  "log",
  "serde",
@@ -741,15 +741,15 @@ dependencies = [
 
 [[package]]
 name = "ejb"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "clap",
- "ej-auth 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "ej-builder-sdk 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "ej-config 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "ej-dispatcher-sdk 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "ej-io 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "ej-requests 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ej-auth 0.3.0",
+ "ej-builder-sdk 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ej-config 0.3.0",
+ "ej-dispatcher-sdk 0.3.0",
+ "ej-io 0.3.0",
+ "ej-requests 0.3.0",
  "futures-util",
  "serde_json",
  "strip-ansi-escapes",
@@ -763,11 +763,11 @@ dependencies = [
 
 [[package]]
 name = "ejcli"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "clap",
- "ej-dispatcher-sdk 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "ej-requests 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ej-dispatcher-sdk 0.3.0",
+ "ej-requests 0.3.0",
  "log",
  "pretty_env_logger",
  "rpassword",
@@ -777,12 +777,12 @@ dependencies = [
 
 [[package]]
 name = "ejd"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "axum",
  "diesel",
- "ej-config 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "ej-dispatcher-sdk 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ej-config 0.3.0",
+ "ej-dispatcher-sdk 0.3.0",
  "ej-models",
  "ej-web",
  "futures",
