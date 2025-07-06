@@ -20,7 +20,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-ej-dispatcher-sdk = "0.3.0"
+ej-dispatcher-sdk = "0.3.3"
 ```
 
 ## Part of EJ Framework

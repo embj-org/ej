@@ -10,7 +10,8 @@ description = "Command-line interface for the EJ framework. Mainly used to setup
 [dependencies]
 
 ej-requests = "0.3.0"
-ej-dispatcher-sdk = "0.3.0"
+ej-dispatcher-sdk = "0.3.3"
+uuid = { version = "1.16.0" }
 clap = { version = "4.5", features = ["derive"] }
 tokio = { version = "1.44.2", features = ["macros", "rt-multi-thread"] }
 serde_json = "1.0"
