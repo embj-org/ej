@@ -52,7 +52,7 @@ async fn main() -> Result<()> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let db = DbConnection::new(&DbConfig::from_env());
+    let db = DbConnection::new(&DbConfig::from_env()).setup();
     let (dispatcher, dispatcher_handle) = Dispatcher::create(db);
     let api_handle = setup_api(dispatcher.clone()).await?;
     let socket_handle = setup_socket(dispatcher).await?;
