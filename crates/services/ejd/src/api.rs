@@ -120,7 +120,7 @@ pub async fn setup_api(dispatcher: Dispatcher) -> Result<JoinHandle<Result<()>>>
         .with_state(dispatcher);
 
     // run it with hyper
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000").await?;
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
     tracing::debug!("listening on {}", listener.local_addr().unwrap());
     let handle = tokio::spawn(async move {
         axum::serve(
