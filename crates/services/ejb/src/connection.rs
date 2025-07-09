@@ -104,7 +104,7 @@ pub async fn handle_connect(
     info!("Successfully pushed config");
 
     let ws_url = if server_url.starts_with("https") {
-        server_url.replace("https", "ws")
+        server_url.replace("https", "wss")
     } else {
         assert!(server_url.starts_with("http"));
         server_url.replace("http", "ws")

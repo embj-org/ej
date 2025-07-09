@@ -16,7 +16,7 @@ ej-requests = "0.3.0"
 ej-config = "0.3.0"
 clap = { version = "4.5", features = ["derive"] }
 tokio = { version = "1.44.2", features = ["macros", "rt-multi-thread"] }
-tokio-tungstenite = "0.26.2"
+tokio-tungstenite = { version = "0.26.2", features = ["native-tls"] }
 futures-util = "0.3.31"
 serde_json = "1.0"
 uuid = { version = "1.16", features = ["v4"] }
