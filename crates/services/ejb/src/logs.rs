@@ -78,6 +78,17 @@ fn dump_logs_internal<W: Write>(
 
                 writeln!(writer)?;
             }
+            if let Some(result) = output.results.get(&key) {
+                writeln!(writer, "========================")?;
+                writeln!(writer, "Result for {} {}", board.name, board_config.name)?;
+                writeln!(writer, "========================")?;
+
+                if strip_ansi {
+                    writeln!(writer, "{}", strip_ansi_codes(result))?;
+                } else {
+                    writeln!(writer, "{}", result)?;
+                }
+            }
         }
     }
 
