@@ -9,11 +9,12 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     let sdk = BuilderSdk::init(|event| {
+//!     let sdk = BuilderSdk::init(|sdk, event| {
 //!         match event {
 //!             BuilderEvent::Exit => {
 //!                 // Cleanup logic here
-//!                 println!("Received exit signal");
+//!                 println!("Received exit signal for: ");
+//!                 println!("{} {} ({:?})", sdk.board_name(), sdk.board_config_name(), sdk.action());
 //!                 std::process::exit(0);
 //!             }
 //!         }
@@ -120,7 +121,8 @@ impl BuilderSdk {
     /// ```rust,no_run
     /// use ej_builder_sdk::{BuilderSdk, BuilderEvent};
     /// # tokio_test::block_on(async {
-    /// let sdk = BuilderSdk::init(|event| {
+    /// let sdk = BuilderSdk::init(|sdk, event| {
+    ///     println!("{:?} {} {} ({:?})", event, sdk.board_name(), sdk.board_config_name(), sdk.action());
     ///     match event {
     ///         BuilderEvent::Exit => std::process::exit(0),
     ///     }
