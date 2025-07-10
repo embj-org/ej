@@ -3,14 +3,21 @@ name = "ej-io"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
-license-file = "LICENSE.plx"
+license.workspace = true
 readme = "README.md"
 description = "Program management utilities for the EJ framework"
 
 [dependencies]
+tokio = { version = "1.46.1", features = [
+	"sync",
+	"process",
+	"io-util",
+	"rt-multi-thread",
+	"time",
+] }
 
 [dev-dependencies]
-ntest = "0.9.3"
+tokio = { version = "1.46.1", features = ["macros"] }
 
 [lints]
 workspace = true

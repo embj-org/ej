@@ -1,15 +1,21 @@
-//! High-level process runner with event handling.
+//! High-level async process runner with event handling.
 
 use std::{
-    io::{self, BufRead, BufReader, Read},
+    io::{self, BufRead, Read},
     process::ExitStatus,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
-        mpsc::Sender,
     },
-    thread::{self, JoinHandle, sleep},
     time::Duration,
+};
+
+use tokio::{
+    io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, BufReader},
+    pin, select,
+    sync::mpsc::Sender,
+    task::{self, JoinHandle},
+    time::sleep,
 };
 
 use crate::process::{
@@ -29,7 +35,7 @@ pub enum RunEvent {
     ProcessNewOutputLine(String),
 }
 
-/// High-level process runner with event-driven output handling.
+/// High-level async process runner with event-driven output handling.
 pub struct Runner {
     /// Command to execute.
     command: String,
@@ -82,222 +88,256 @@ impl Runner {
     pub fn get_full_command(&self) -> String {
         format!("{} {}", &self.command, &self.args.join(" "))
     }
-    fn read_stream<T: Read>(tx: Sender<RunEvent>, mut stream: T) {
+    async fn read_stream<T: AsyncRead + Unpin>(tx: Sender<RunEvent>, mut stream: T) {
         let mut buffer = [0; 1024];
         loop {
-            match stream.read(&mut buffer) {
-                Ok(0) => break, // EOF
+            let read_result = stream.read(&mut buffer).await;
+            match read_result {
+                Ok(0) => break,
                 Ok(n) => {
                     let data = String::from_utf8_lossy(&buffer[..n]);
-                    let _ = tx.send(RunEvent::ProcessNewOutputLine(data.to_string()));
+                    let _ = tx
+                        .send(RunEvent::ProcessNewOutputLine(data.to_string()))
+                        .await;
                 }
                 Err(_) => break,
             }
         }
     }
-    fn launch_stream_reader<T>(tx: Sender<RunEvent>, stream: T) -> JoinHandle<()>
+    async fn launch_stream_reader<T>(tx: Sender<RunEvent>, stream: T) -> JoinHandle<()>
     where
-        T: Read + Send + 'static,
+        T: AsyncRead + Unpin + Send + 'static,
     {
-        thread::spawn(move || Runner::read_stream(tx, stream))
+        task::spawn(async move { Runner::read_stream(tx, stream).await })
     }
 
-    /// Run the process with event monitoring.
+    /// Asynchronously run the process with event monitoring.
     ///
-    /// Starts the process and monitors its execution, sending events via the provided channel.
-    /// Reads stdout and stderr until the process finishes or is stopped.
+    /// Starts the process and monitors its execution asynchronously, sending events via the provided tokio channel.
+    /// Reads stdout and stderr concurrently until the process finishes or is stopped.
     ///
     /// # Arguments
     ///
-    /// * `tx` - Channel sender for RunEvent notifications
+    /// * `tx` - Tokio async channel sender for RunEvent notifications
     /// * `should_stop` - Atomic flag to signal process termination
+    ///
+    /// # Returns
+    ///
+    /// Returns an `Option<ExitStatus>` - `None` if the process failed to start or was terminated,
+    /// `Some(ExitStatus)` if the process completed normally.
     ///
     /// # Examples
     ///
     /// ```rust
     /// use ej_io::runner::{Runner, RunEvent};
-    /// use std::sync::{Arc, atomic::AtomicBool, mpsc};
+    /// use std::sync::{Arc, atomic::AtomicBool};
+    /// use tokio::sync::mpsc;
     ///
-    /// let runner = Runner::new("echo", vec!["Hello"]);
-    /// let (tx, rx) = mpsc::channel();
-    /// let should_stop = Arc::new(AtomicBool::new(false));
+    /// #[tokio::main]
+    /// async fn main() {
+    ///     let runner = Runner::new("echo", vec!["Hello"]);
+    ///     let (tx, mut rx) = mpsc::channel(100);
+    ///     let should_stop = Arc::new(AtomicBool::new(false));
     ///
-    /// let exit_status = runner.run(tx, should_stop);
+    ///     let exit_status = runner.run(tx, should_stop).await;
+    /// }
     /// ```
-    pub fn run(&self, tx: Sender<RunEvent>, should_stop: Arc<AtomicBool>) -> Option<ExitStatus> {
+    pub async fn run(
+        &self,
+        tx: Sender<RunEvent>,
+        should_stop: Arc<AtomicBool>,
+    ) -> Option<ExitStatus> {
         let mut process = spawn_process(&self.command, self.args.clone())
-            .map_err(|err| {
-                let _ = tx.send(RunEvent::ProcessCreationFailed(format!("{:?}", err)));
+            .map_err(async |err| {
+                let _ = tx
+                    .send(RunEvent::ProcessCreationFailed(format!("{:?}", err)))
+                    .await;
             })
             .ok()?;
 
-        let _ = tx.send(RunEvent::ProcessCreated);
+        let _ = tx.send(RunEvent::ProcessCreated).await;
 
-        // Take stdout and stderr and launch a stream reader for each
-        let mut stdout_thread = {
-            if let Some(stdout) = process.stdout.take() {
-                Some(Runner::launch_stream_reader(tx.clone(), stdout))
-            } else {
-                None
-            }
-        };
-        let mut stderr_thread = {
-            if let Some(stderr) = process.stderr.take() {
-                Some(Runner::launch_stream_reader(tx.clone(), stderr))
-            } else {
-                None
-            }
-        };
-
-        // Loop forever until we either get asked to stop or the process ends
-        let exit_status = loop {
-            if should_stop.load(Ordering::Relaxed) {
-                if stop_child(&mut process).is_err() {
-                    break None;
-                }
-                break capture_exit_status(&mut process).ok();
-            }
-            match get_process_status(&mut process) {
-                Err(_) => break None,
-                Ok(ProcessStatus::Done(status)) => break Some(status),
-                Ok(ProcessStatus::Running) => {
-                    sleep(Duration::from_millis(100));
-                }
-            };
-        };
-
-        // Join stdout and stderr threads
-        if let Some(t) = stdout_thread.take() {
-            let _ = t.join();
-        }
-
-        if let Some(t) = stderr_thread.take() {
-            let _ = t.join();
-        }
-
-        let success = if let Some(exit_status) = exit_status {
-            exit_status.success()
+        // Launch all three tasks concurrently
+        let stdout_task = if let Some(stdout) = process.stdout.take() {
+            println!("Launching stdout reader function");
+            Some(Runner::launch_stream_reader(tx.clone(), stdout))
         } else {
-            false
+            println!("Failed to launch stdout reader function");
+            None
         };
 
-        let _ = tx.send(RunEvent::ProcessEnd(success));
+        let stderr_task = if let Some(stderr) = process.stderr.take() {
+            println!("Launching stderr reader function");
+            Some(Runner::launch_stream_reader(tx.clone(), stderr))
+        } else {
+            println!("Failed to launch stderr reader function");
+            None
+        };
+
+        // Create a task that waits for the process to complete
+        let process_task = task::spawn(async move {
+            loop {
+                if should_stop.load(Ordering::Relaxed) {
+                    if stop_child(&mut process).await.is_ok() {
+                        return capture_exit_status(&mut process).await.ok();
+                    }
+                    return None;
+                }
+
+                // Check process status
+                match get_process_status(&mut process).await {
+                    Err(_) => return None,
+                    Ok(ProcessStatus::Done(status)) => return Some(status),
+                    Ok(ProcessStatus::Running) => {
+                        sleep(Duration::from_millis(100)).await;
+                    }
+                }
+            }
+        });
+
+        // Use join! to wait for ALL tasks to complete
+        println!("Starting all tasks concurrently");
+        let (process_result, stdout_result, stderr_result) = tokio::join!(
+            process_task,
+            async {
+                if let Some(task) = stdout_task {
+                    task.await;
+                }
+            },
+            async {
+                if let Some(task) = stderr_task {
+                    task.await;
+                }
+            }
+        );
+        let exit_status = process_result.ok().flatten();
+        let success = exit_status.map_or(false, |status| status.success());
+        let _ = tx.send(RunEvent::ProcessEnd(success)).await;
         exit_status
     }
 }
 
 #[cfg(test)]
 mod test {
-    use std::{
-        env, os,
+    use std::{env, os};
+
+    use tokio::{
         process::Command,
         sync::mpsc::{Receiver, channel},
     };
 
-    use ntest::timeout;
-
     use super::*;
 
-    fn compile_program(c_file: &str, target: &str) {
+    async fn compile_program(c_file: &str, target: &str) {
         let output = Command::new("gcc")
             .arg(c_file)
             .arg("-o")
             .arg(target)
             .output()
+            .await
             .expect("Couldn't compile program");
-        println!("Output: {:?}", output);
     }
-    fn launch_program(
+    async fn launch_program(
         target: &str,
         stop: Arc<AtomicBool>,
     ) -> (JoinHandle<Option<ExitStatus>>, Receiver<RunEvent>) {
         let runner = Runner::new_without_args(target.to_string());
 
-        let (tx, rx) = channel();
+        let (tx, rx) = channel(10);
         let thread_stop = stop.clone();
 
         (
-            thread::spawn(move || {
-                let exit = runner.run(tx, thread_stop);
+            task::spawn(async move {
+                let exit = runner.run(tx, thread_stop).await;
                 assert!(exit.is_some());
                 exit
             }),
             rx,
         )
     }
-    fn run_blocking_program(target: &str) {
-        sleep(Duration::from_secs(1));
+    async fn run_blocking_program(target: &str) {
+        tokio::time::sleep(Duration::from_secs(1)).await;
         let stop = Arc::new(AtomicBool::new(false));
-        let (handler, _) = launch_program(target, stop.clone());
+        let (handler, _) = launch_program(target, stop.clone()).await;
         // Stop should kill the process no matter the condition it is in
         stop.store(true, Ordering::Relaxed);
         handler
-            .join()
+            .await
             .expect("Couldn't join thread")
             .expect("Couldn't get child exit status");
     }
-    fn compile_and_run_blocking_program(c_file: &str, target: &str) {
-        compile_program(c_file, target);
-        run_blocking_program(target);
+    async fn compile_and_run_blocking_program(c_file: &str, target: &str) {
+        compile_program(c_file, target).await;
+        run_blocking_program(target).await;
         let _ = std::fs::remove_file(target);
     }
-    #[test]
-    #[timeout(5000)]
-    fn test_stuck_stdin() {
+    #[tokio::test]
+    async fn test_stuck_stdin() {
         // This code blocks reading stdin forever
-        println!("{:?}", env::current_dir());
         let c_file = "./tests/assets/wait_stdin.c";
         let target = "./wait_stdin";
-        compile_and_run_blocking_program(c_file, target);
+        compile_and_run_blocking_program(c_file, target).await;
     }
 
-    #[test]
-    #[timeout(5000)]
-    fn test_infinite_loop() {
+    #[tokio::test]
+    async fn test_infinite_loop() {
         // This code does while(1)
         let c_file = "./tests/assets/infinite_loop.c";
         let target = "./infinite_loop";
-        compile_and_run_blocking_program(c_file, target);
+        compile_and_run_blocking_program(c_file, target).await;
     }
 
-    #[test]
-    #[timeout(5000)]
-    fn test_infinite_loop_with_sig_mapped() {
+    #[tokio::test]
+    async fn test_infinite_loop_with_sig_mapped() {
         // This code enters an inifinite loop and ignores sigterm and sigint
         let c_file = "./tests/assets/infinite_loop_map_signals.c";
         let target = "./infinit_loop_map_signals";
-        compile_and_run_blocking_program(c_file, target);
+        compile_and_run_blocking_program(c_file, target).await;
     }
-
-    #[test]
-    #[timeout(10000)]
-    fn test_stdout_during_run() {
-        //This code loops forever and prints Hello <i> every second
+    #[tokio::test]
+    async fn test_infinite_loop_with_timeouts() {
+        // This code loops forever and prints Hello * every second
         let c_file = "./tests/assets/infinite_loop.c";
         let target = "./infinite_loop_stdout";
-        compile_program(c_file, target);
+
+        compile_program(c_file, target).await;
 
         let stop = Arc::new(AtomicBool::new(false));
-        let (handler, rx) = launch_program(target, stop.clone());
+        let (handler, mut rx) = launch_program(target, stop.clone()).await;
 
-        //give the program some time to start
-        sleep(Duration::from_millis(1000));
+        // Give the program some time to start
+        tokio::time::sleep(Duration::from_millis(1000)).await;
 
-        assert_eq!(
-            rx.recv().expect("Didn't receive data from process"),
-            RunEvent::ProcessCreated
-        );
+        // Wait for process creation with timeout
+        let event = tokio::time::timeout(Duration::from_secs(5), rx.recv())
+            .await
+            .expect("To receive message before timeout")
+            .expect("To have a message");
+
+        assert_eq!(event, RunEvent::ProcessCreated);
+
         for i in 1..=4 {
+            let event = tokio::time::timeout(Duration::from_secs(2), rx.recv())
+                .await
+                .expect("To receive message before timeout")
+                .expect("To have a message");
+
             assert_eq!(
-                rx.recv().expect("Didn't receive data from process"),
-                RunEvent::ProcessNewOutputLine(String::from(format!("Hello {}\n", i)))
+                event,
+                RunEvent::ProcessNewOutputLine(format!("Hello {}\n", i))
             );
         }
+
         stop.store(true, Ordering::Relaxed);
-        handler
-            .join()
+
+        // Wait for handler to complete with timeout
+        let join_result = tokio::time::timeout(Duration::from_secs(5), handler).await;
+
+        join_result
+            .expect("Timeout waiting for handler to complete")
             .expect("Couldn't join thread")
             .expect("Couldn't get child exit status");
+
         let _ = std::fs::remove_file(target);
     }
 }
