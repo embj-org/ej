@@ -58,10 +58,11 @@ pub fn handle_run_and_build(builder: &Builder) -> Result<()> {
     let mut output = EjRunOutput::new(&config);
     let stop = Arc::new(AtomicBool::new(false));
     let result = build(builder, &config, &mut output, Arc::clone(&stop));
-    dump_logs(&output, stdout())?;
-    result?;
+    if result.is_err() {
+        dump_logs(&output, stdout())?;
+        return result;
+    }
     let result = run(builder, &config, &mut output, Arc::clone(&stop));
     dump_logs(&output, stdout())?;
-    result?;
-    Ok(())
+    return result;
 }
