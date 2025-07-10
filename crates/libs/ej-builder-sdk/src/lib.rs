@@ -93,6 +93,7 @@ impl From<Action> for String {
 ///
 /// Handles Unix socket communication and event processing between
 /// the builder and dispatcher.
+#[derive(Debug, Clone)]
 pub struct BuilderSdk {
     /// The board name.
     board_name: String,
@@ -128,7 +129,7 @@ impl BuilderSdk {
     /// ```
     pub async fn init<F>(event_callback: F) -> Result<Self>
     where
-        F: Fn(BuilderEvent) + Send + Sync + 'static,
+        F: Fn(&Self, BuilderEvent) + Send + Sync + 'static,
     {
         let args: Vec<String> = std::env::args().into_iter().collect();
         if args.len() < 6 {
@@ -138,14 +139,16 @@ impl BuilderSdk {
         let action: Action = TryFrom::<&str>::try_from(&args[1])?;
 
         let stream = UnixStream::connect(&args[5]).await?;
-        tokio::spawn(async move { BuilderSdk::start_event_loop(stream, event_callback) });
-
-        Ok(Self {
+        let sdk = Self {
             config_path: args[2].clone(),
             board_name: args[3].clone(),
             board_config_name: args[4].clone(),
             action,
-        })
+        };
+        let sdk_loop = sdk.clone();
+
+        tokio::spawn(async move { sdk_loop.start_event_loop(stream, event_callback) });
+        Ok(sdk)
     }
     /// Get the action this script should take
     pub fn action(&self) -> Action {
@@ -168,9 +171,9 @@ impl BuilderSdk {
         Ok(serde_json::from_str(payload)?)
     }
     /// Start the event loop for processing dispatcher messages.
-    async fn start_event_loop<F>(stream: UnixStream, cb: F) -> Result<()>
+    async fn start_event_loop<F>(self, stream: UnixStream, cb: F) -> Result<()>
     where
-        F: Fn(BuilderEvent) + Send + Sync + 'static,
+        F: Fn(&BuilderSdk, BuilderEvent) + Send + Sync + 'static,
     {
         let mut payload = String::new();
         let (mut rx, mut tx) = stream.into_split();
@@ -181,7 +184,7 @@ impl BuilderSdk {
                 Ok(n) => {
                     let event = BuilderSdk::parse_event(&payload)?;
                     info!("Received event from builder {:?}", event);
-                    cb(event);
+                    cb(&self, event);
                     info!("Acking event to builder");
                     let response = serde_json::to_string(&BuilderResponse::Ack)?;
                     tx.write_all(response.as_bytes()).await;
