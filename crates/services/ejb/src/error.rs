@@ -3,8 +3,6 @@
 //! Defines error variants that can occur during builder operations,
 //! including configuration errors, build failures, and connection issues.
 
-use std::any::Any;
-
 /// Errors that can occur in the EJ Builder Service.
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -25,8 +23,8 @@ pub enum Error {
     )]
     BuilderTokenMissing,
 
-    #[error("Failed to join thread {0:?}")]
-    ThreadJoin(Box<dyn Any + Send + 'static>),
+    #[error(transparent)]
+    ThreadJoin(#[from] tokio::task::JoinError),
 
     #[error("Failed to get exit status from process")]
     ProcessExitStatusUnavailable,

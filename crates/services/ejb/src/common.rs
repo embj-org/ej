@@ -5,12 +5,15 @@
 
 use std::{
     process::ExitStatus,
-    sync::{Arc, atomic::AtomicBool, mpsc::Sender},
-    thread::{self, JoinHandle},
+    sync::{Arc, atomic::AtomicBool},
 };
 
 use ej_builder_sdk::Action;
 use ej_io::runner::{RunEvent, Runner};
+use tokio::{
+    sync::mpsc::Sender,
+    task::{self, JoinHandle},
+};
 
 /// Arguments for spawning a runner process.
 ///
@@ -78,5 +81,5 @@ pub fn spawn_runner(
     stop: Arc<AtomicBool>,
 ) -> JoinHandle<Option<ExitStatus>> {
     let runner = args.build_runner();
-    thread::spawn(move || runner.run(tx, stop))
+    task::spawn(async move { runner.run(tx, stop).await })
 }

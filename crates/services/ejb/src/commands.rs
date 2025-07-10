@@ -20,7 +20,7 @@ use crate::run_output::EjRunOutput;
 ///
 /// Parses and displays the loaded configuration including global settings,
 /// board information, and individual configuration details.
-pub fn handle_parse(builder: &Builder) -> Result<()> {
+pub async fn handle_parse(builder: &Builder) -> Result<()> {
     let config = &builder.config;
 
     println!("Configuration parsed successfully");
@@ -51,18 +51,18 @@ pub fn handle_parse(builder: &Builder) -> Result<()> {
 /// configuration file, collecting and displaying results.
 /// Useful for ensuring that the configuration is valid and working before connecting
 /// to the dispatcher service.
-pub fn handle_run_and_build(builder: &Builder) -> Result<()> {
+pub async fn handle_run_and_build(builder: &Builder) -> Result<()> {
     println!("Validating configuration file: {:?}", builder.config_path);
 
     let config = &builder.config;
     let mut output = EjRunOutput::new(&config);
     let stop = Arc::new(AtomicBool::new(false));
-    let result = build(builder, &config, &mut output, Arc::clone(&stop));
+    let result = build(builder, &config, &mut output, Arc::clone(&stop)).await;
     if result.is_err() {
         dump_logs(&output, stdout())?;
         return result;
     }
-    let result = run(builder, &config, &mut output, Arc::clone(&stop));
+    let result = run(builder, &config, &mut output, Arc::clone(&stop)).await;
     dump_logs(&output, stdout())?;
     return result;
 }

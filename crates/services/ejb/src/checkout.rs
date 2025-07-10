@@ -17,8 +17,9 @@ use ej_io::runner::{RunEvent, Runner};
 use std::{
     collections::HashMap,
     io::stdout,
-    sync::{Arc, atomic::AtomicBool, mpsc::channel},
+    sync::{Arc, atomic::AtomicBool},
 };
+use tokio::sync::mpsc::channel;
 use tracing::{error, info};
 use uuid::Uuid;
 
@@ -43,12 +44,12 @@ fn build_remote_url(remote_url: &str, remote_token: Option<String>) -> String {
     let token = remote_token.unwrap();
     return format!("{}{}@{}", prefix, token, url);
 }
-fn checkout(
+async fn checkout(
     commit_hash: &str,
     remote_url: &str,
     remote_token: Option<String>,
     config: &EjBoardConfig,
-    output: &mut EjRunOutput,
+    output: &mut EjRunOutput<'_>,
 ) -> Result<()> {
     info!(
         "Checking out library at {} for board {}",
@@ -78,12 +79,12 @@ fn checkout(
     ];
 
     for command in commands {
-        let (tx, rx) = channel();
+        let (tx, mut rx) = channel(10);
         let stop = Arc::new(AtomicBool::new(false));
         let runner = Runner::new(command[0], command[1..].to_vec());
         let result = runner.run(tx, stop);
 
-        while let Ok(event) = rx.recv() {
+        while let Some(event) = rx.recv().await {
             match event {
                 RunEvent::ProcessCreationFailed(err) => {
                     error!("Failed to run command {:?} - {err}", command)
@@ -116,7 +117,7 @@ fn checkout(
             }
         }
 
-        if let Some(result) = result {
+        if let Some(result) = result.await {
             info!("Result for command {:?} {:?}", command, result);
         }
     }
@@ -138,12 +139,12 @@ fn checkout(
 /// * `remote_url` - Git repository URL
 /// * `remote_token` - Optional authentication token for private repositories
 /// * `output` - Output collector for logs and results
-pub fn checkout_all(
+pub async fn checkout_all(
     config: &EjConfig,
     commit_hash: &str,
     remote_url: &str,
     remote_token: Option<String>,
-    output: &mut EjRunOutput,
+    output: &mut EjRunOutput<'_>,
 ) -> Result<()> {
     let mut paths: HashMap<&str, &Uuid> = HashMap::new();
     for board in config.boards.iter() {
@@ -166,7 +167,8 @@ pub fn checkout_all(
                 remote_token.clone(),
                 config,
                 output,
-            )?;
+            )
+            .await?;
             paths.insert(&current_path, &config.id);
         }
     }
@@ -185,7 +187,7 @@ pub fn checkout_all(
 /// ejb checkout --commit-hash abc123 --remote-url https://github.com/user/repo.git
 /// ejb checkout --commit-hash def456 --remote-url https://github.com/user/private.git --remote-token token123
 /// ```
-pub fn handle_checkout(
+pub async fn handle_checkout(
     builder: &Builder,
     commit_hash: String,
     remote_url: String,
@@ -198,7 +200,8 @@ pub fn handle_checkout(
         &remote_url,
         remote_token,
         &mut output,
-    );
+    )
+    .await;
 
     dump_logs(&output, stdout())?;
     result

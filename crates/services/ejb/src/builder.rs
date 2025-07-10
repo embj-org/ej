@@ -61,6 +61,7 @@ impl Builder {
         let config = EjUserConfig::from_file(&config_path)?;
         let config = EjConfig::from_user_config(config);
         let (tx, rx) = channel(32);
+
         Builder::start_thread(rx, &socket_path).await?;
         let config_path_str = config_path
             .into_os_string()
@@ -90,10 +91,25 @@ impl Builder {
         tokio::spawn(async move {
             while let Some(message) = rx.recv().await {
                 info!("New Builder Message. Message {:?}", message,);
-                for tx in t_channels.lock().await.iter() {
+
+                let mut to_remove = Vec::new();
+                let mut t_channels = t_channels.lock().await;
+
+                for (index, tx) in t_channels.iter().enumerate() {
                     if let Err(err) = tx.send(message.clone()).await {
                         warn!("Failed to send message to {err}");
+                        to_remove.push(index);
                     }
+                }
+                // Remove failed channels in reverse order to maintain indices
+                for &index in to_remove.iter().rev() {
+                    t_channels.remove(index);
+                }
+
+                // If this was an Exit message, break the loop
+                if matches!(message, BuilderEvent::Exit) {
+                    info!("Exit message processed, shutting down message broadcaster");
+                    break;
                 }
             }
         });
@@ -121,7 +137,7 @@ impl Builder {
                                 error!("Error handling client: {}", e);
                             }
                             info!("Socket connection {id} ended");
-                            channels.lock().await.remove(index);
+                            // Channel deletion will be handled by broadcaster
                         });
                     }
                     Err(e) => {
@@ -138,6 +154,10 @@ impl Builder {
             let serialized_response = serde_json::to_string(&message)?;
             writer.write_all(serialized_response.as_bytes()).await?;
             writer.write_all(b"\n").await?;
+            if matches!(message, BuilderEvent::Exit) {
+                info!("Received exit message, closing connection");
+                break;
+            }
         }
         Ok(())
     }

@@ -34,6 +34,8 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use cli::{Cli, Commands};
+use ej_builder_sdk::BuilderEvent;
+use tracing::{info, warn};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::prelude::*;
@@ -78,15 +80,34 @@ async fn main() -> Result<()> {
     let default_socket_path = PathBuf::from("/tmp/ejb.sock");
     let builder =
         Builder::create(cli.config, cli.socket_path.unwrap_or(default_socket_path)).await?;
+    let shutdown_tx = builder.tx.clone();
 
-    match cli.command {
-        Commands::Parse => handle_parse(&builder),
-        Commands::Checkout {
-            commit_hash,
-            remote_url,
-            remote_token,
-        } => handle_checkout(&builder, commit_hash, remote_url, remote_token),
-        Commands::Validate => handle_run_and_build(&builder),
-        Commands::Connect { server } => handle_connect(builder, &server, cli.id, cli.token).await,
+    tokio::select! {
+        result = async {
+            match cli.command {
+                Commands::Parse => handle_parse(&builder).await,
+                Commands::Checkout {
+                    commit_hash,
+                    remote_url,
+                    remote_token,
+                } => handle_checkout(&builder, commit_hash, remote_url, remote_token).await,
+                Commands::Validate => handle_run_and_build(&builder).await,
+                Commands::Connect { server } => handle_connect(builder, &server, cli.id, cli.token).await,
+            }
+        } => {
+            info!("Command completed: {:?}", result);
+        }
+
+        _ = tokio::signal::ctrl_c() => {
+            info!("Received Ctrl+C, shutting down gracefully...");
+        }
     }
+
+    if let Err(e) = shutdown_tx.send(BuilderEvent::Exit).await {
+        warn!("Failed to send exit signal: {}", e);
+    }
+    info!("Waiting for cleanup to complete...");
+    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+    info!("Shutdown complete");
+    Ok(())
 }

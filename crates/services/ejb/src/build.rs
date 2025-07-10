@@ -13,11 +13,12 @@
 //! as each build script is expected to utilize all available CPU cores.
 //! Build processes can be cancelled if a stop signal is received.
 
-use std::sync::{Arc, atomic::AtomicBool, mpsc};
+use std::sync::{Arc, atomic::AtomicBool};
 
 use ej_builder_sdk::Action;
 use ej_config::ej_config::EjConfig;
 use ej_io::runner::RunEvent;
+use tokio::sync::mpsc::channel;
 use tracing::{error, info};
 
 use crate::common::SpawnRunnerArgs;
@@ -40,10 +41,10 @@ use crate::{builder::Builder, common::spawn_runner};
 /// # Returns
 ///
 /// Returns `Ok(())` if all builds succeed, or the first error encountered.
-pub fn build(
+pub async fn build(
     builder: &Builder,
     config: &EjConfig,
-    output: &mut EjRunOutput,
+    output: &mut EjRunOutput<'_>,
     stop: Arc<AtomicBool>,
 ) -> Result<()> {
     let board_count = config.boards.len();
@@ -51,7 +52,7 @@ pub fn build(
     for (board_idx, board) in config.boards.iter().enumerate() {
         info!("Board {}/{}: {}", board_idx + 1, board_count, board.name);
         for (config_idx, board_config) in board.configs.iter().enumerate() {
-            let (tx, rx) = mpsc::channel();
+            let (tx, mut rx) = channel(10);
             info!("Config {}: {}", config_idx + 1, board_config.name);
 
             let args = SpawnRunnerArgs {
@@ -65,7 +66,7 @@ pub fn build(
             let stop = Arc::clone(&stop);
             let handle = spawn_runner(args, tx, stop);
 
-            while let Ok(event) = rx.recv() {
+            while let Some(event) = rx.recv().await {
                 match event {
                     RunEvent::ProcessCreationFailed(err) => {
                         error!(
@@ -100,7 +101,7 @@ pub fn build(
                 }
             }
             let exit_status = handle
-                .join()
+                .await
                 .map_err(|err| Error::ThreadJoin(err))?
                 .ok_or(Error::ProcessExitStatusUnavailable)?;
 

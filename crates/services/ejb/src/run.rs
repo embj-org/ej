@@ -20,8 +20,8 @@ use ej_io::runner::RunEvent;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
-use std::sync::mpsc::channel;
-use std::thread;
+use tokio::sync::mpsc::channel;
+use tokio::task;
 use tracing::{error, info};
 use uuid::Uuid;
 
@@ -45,10 +45,10 @@ use crate::run_output::EjRunOutput;
 /// # Returns
 ///
 /// Returns `Ok(())` if all runs succeed, or the first error encountered.
-pub fn run(
+pub async fn run(
     builder: &Builder,
     config: &EjConfig,
-    output: &mut EjRunOutput,
+    output: &mut EjRunOutput<'_>,
     stop: Arc<AtomicBool>,
 ) -> Result<()> {
     let mut join_handlers = Vec::new();
@@ -64,12 +64,14 @@ pub fn run(
             config_path: builder.config_path.clone(),
             socket_path: builder.socket_path.clone(),
         };
-        join_handlers.push(thread::spawn(move || run_all_configs(args, &board, stop)));
+        join_handlers.push(task::spawn(async move {
+            run_all_configs(args, &board, stop).await
+        }));
     }
 
     for (i, handler) in join_handlers.into_iter().enumerate() {
         let board = &config.boards[i];
-        match handler.join() {
+        match handler.await {
             Ok(board_results) => {
                 for (key, (mut logs, result)) in board_results {
                     let config = board
@@ -109,14 +111,14 @@ pub fn run(
     Ok(())
 }
 
-fn run_all_configs(
+async fn run_all_configs(
     mut args: SpawnRunnerArgs,
     board: &EjBoard,
     stop: Arc<AtomicBool>,
 ) -> HashMap<Uuid, (Vec<String>, Option<String>)> {
     let mut outputs = HashMap::new();
     for board_config in board.configs.iter() {
-        let (tx, rx) = channel();
+        let (tx, mut rx) = channel(10);
 
         args.script_name = board_config.run_script.clone();
         args.config_name = board_config.name.clone();
@@ -124,7 +126,7 @@ fn run_all_configs(
 
         outputs.insert(board_config.id, (Vec::new(), None));
 
-        while let Ok(event) = rx.recv() {
+        while let Some(event) = rx.recv().await {
             match event {
                 RunEvent::ProcessCreationFailed(err) => {
                     error!("{} - Failed to create process {}", board_config.name, err)
@@ -142,7 +144,7 @@ fn run_all_configs(
                 }
             }
         }
-        match handle.join() {
+        match handle.await {
             Ok(exit_status) => {
                 if let Some(exit_status) = exit_status {
                     if !exit_status.success() {

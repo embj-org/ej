@@ -178,9 +178,10 @@ pub async fn handle_connect(
                                 &job.remote_url,
                                 job.remote_token,
                                 &mut output,
-                            );
+                            )
+                            .await;
                             if result.is_ok() {
-                                result = build(&builder, &config, &mut output, t_stop);
+                                result = build(&builder, &config, &mut output, t_stop).await;
                             }
                             if let Err(err) = dump_logs_to_temporary_file(&output) {
                                 error!("Failed to dump logs to file - {err}");
@@ -234,12 +235,14 @@ pub async fn handle_connect(
                                 &job.remote_url,
                                 job.remote_token,
                                 &mut output,
-                            );
+                            )
+                            .await;
                             if result.is_ok() {
-                                result = build(&builder, &config, &mut output, Arc::clone(&t_stop));
+                                result = build(&builder, &config, &mut output, Arc::clone(&t_stop))
+                                    .await;
                             }
                             if result.is_ok() {
-                                result = run(&builder, &config, &mut output, t_stop);
+                                result = run(&builder, &config, &mut output, t_stop).await;
                             }
                             if let Err(err) = dump_logs_to_temporary_file(&output) {
                                 error!("Failed to dump logs to file - {err}");
