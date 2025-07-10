@@ -16,6 +16,7 @@ use tokio::{
     task::{self, JoinHandle},
     time::sleep,
 };
+use tracing::{error, info};
 
 use crate::process::{
     ProcessStatus, capture_exit_status, get_process_status, spawn_process, stop_child,
@@ -156,24 +157,22 @@ impl Runner {
 
         let _ = tx.send(RunEvent::ProcessCreated).await;
 
-        // Launch all three tasks concurrently
         let stdout_task = if let Some(stdout) = process.stdout.take() {
-            println!("Launching stdout reader function");
+            info!("Launching stdout reader function");
             Some(Runner::launch_stream_reader(tx.clone(), stdout))
         } else {
-            println!("Failed to launch stdout reader function");
+            error!("Failed to launch stdout reader function");
             None
         };
 
         let stderr_task = if let Some(stderr) = process.stderr.take() {
-            println!("Launching stderr reader function");
+            info!("Launching stderr reader function");
             Some(Runner::launch_stream_reader(tx.clone(), stderr))
         } else {
-            println!("Failed to launch stderr reader function");
+            error!("Failed to launch stderr reader function");
             None
         };
 
-        // Create a task that waits for the process to complete
         let process_task = task::spawn(async move {
             loop {
                 if should_stop.load(Ordering::Relaxed) {
@@ -194,8 +193,6 @@ impl Runner {
             }
         });
 
-        // Use join! to wait for ALL tasks to complete
-        println!("Starting all tasks concurrently");
         let (process_result, stdout_result, stderr_result) = tokio::join!(
             process_task,
             async {
