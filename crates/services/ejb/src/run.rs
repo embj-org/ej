@@ -80,15 +80,11 @@ pub fn run(
 
                     match result {
                         Some(result) => {
-                            info!("Results for {} - {}", board.name, config.name);
-                            info!("{}", result);
+                            info!("Found results for {} - {}", board.name, config.name);
                             output.results.insert(key, result);
                         }
                         None => {
-                            error!(
-                                "Results for {} - {} are not available",
-                                board.name, config.name
-                            );
+                            error!("Couldn't find results for {} - {}", board.name, config.name);
                         }
                     }
                     match output.logs.get_mut(&key) {
