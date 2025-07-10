@@ -8,7 +8,12 @@ readme = "README.md"
 description = "SDK for creating applications that interface with EJB"
 
 [dependencies]
-tokio = { version = "1.44.2", features = ["net", "io-util", "rt-multi-thread"] }
+tokio = { version = "1.44.2", features = [
+	"signal",
+	"net",
+	"io-util",
+	"rt-multi-thread",
+] }
 tracing = "0.1.41"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

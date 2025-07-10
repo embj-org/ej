@@ -9,7 +9,7 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     let sdk = BuilderSdk::init(|sdk, event| {
+//!     let sdk = BuilderSdk::init(|sdk, event| async move {
 //!         match event {
 //!             BuilderEvent::Exit => {
 //!                 // Cleanup logic here
@@ -34,6 +34,7 @@ use tokio::{
         UnixStream,
         unix::{OwnedReadHalf, OwnedWriteHalf},
     },
+    signal::unix::{SignalKind, signal},
 };
 use tracing::info;
 
@@ -121,7 +122,7 @@ impl BuilderSdk {
     /// ```rust,no_run
     /// use ej_builder_sdk::{BuilderSdk, BuilderEvent};
     /// # tokio_test::block_on(async {
-    /// let sdk = BuilderSdk::init(|sdk, event| {
+    /// let sdk = BuilderSdk::init(|sdk, event| async move {
     ///     println!("{:?} {} {} ({:?})", event, sdk.board_name(), sdk.board_config_name(), sdk.action());
     ///     match event {
     ///         BuilderEvent::Exit => std::process::exit(0),
@@ -129,9 +130,10 @@ impl BuilderSdk {
     /// }).await.unwrap();
     /// # });
     /// ```
-    pub async fn init<F>(event_callback: F) -> Result<Self>
+    pub async fn init<F, Fut>(event_callback: F) -> Result<Self>
     where
-        F: Fn(&Self, BuilderEvent) + Send + Sync + 'static,
+        F: Fn(Self, BuilderEvent) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<()>> + Send + 'static,
     {
         let args: Vec<String> = std::env::args().into_iter().collect();
         if args.len() < 6 {
@@ -148,8 +150,14 @@ impl BuilderSdk {
             action,
         };
         let sdk_loop = sdk.clone();
+        let mut sigint = signal(SignalKind::interrupt())?;
+        tokio::spawn(async move {
+            while sigint.recv().await.is_some() {
+                info!("SIGINT received");
+            }
+        });
 
-        tokio::spawn(async move { sdk_loop.start_event_loop(stream, event_callback) });
+        tokio::spawn(async move { sdk_loop.start_event_loop(stream, event_callback).await });
         Ok(sdk)
     }
     /// Get the action this script should take
@@ -173,27 +181,38 @@ impl BuilderSdk {
         Ok(serde_json::from_str(payload)?)
     }
     /// Start the event loop for processing dispatcher messages.
-    async fn start_event_loop<F>(self, stream: UnixStream, cb: F) -> Result<()>
+    async fn start_event_loop<F, Fut>(self, stream: UnixStream, cb: F) -> Result<()>
     where
-        F: Fn(&BuilderSdk, BuilderEvent) + Send + Sync + 'static,
+        F: Fn(Self, BuilderEvent) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<()>> + Send + 'static,
     {
         let mut payload = String::new();
         let (mut rx, mut tx) = stream.into_split();
 
         loop {
-            match rx.read_to_string(&mut payload).await {
-                Ok(0) => break,
-                Ok(n) => {
-                    let event = BuilderSdk::parse_event(&payload)?;
-                    info!("Received event from builder {:?}", event);
-                    cb(&self, event);
-                    info!("Acking event to builder");
-                    let response = serde_json::to_string(&BuilderResponse::Ack)?;
-                    tx.write_all(response.as_bytes()).await;
-                    tx.write_all(b"\n").await;
-                    tx.flush().await;
+            tokio::select! {
+                read_result = rx.read_to_string(&mut payload)  => {
+                    match read_result {
+                        Ok(0) => break,
+                        Ok(n) => {
+                            let event = BuilderSdk::parse_event(&payload)?;
+                            info!("Received event from builder {:?}", event);
+                            cb(self.clone(), event).await;
+                            info!("Acking event to builder");
+                            let response = serde_json::to_string(&BuilderResponse::Ack)?;
+                            tx.write_all(response.as_bytes()).await;
+                            tx.write_all(b"\n").await;
+                            tx.flush().await;
+                        }
+                        Err(e) => return Err(Error::from(e)),
+                    }
                 }
-                Err(e) => return Err(Error::from(e)),
+
+                _ = tokio::signal::ctrl_c() => {
+                    info!("Received Ctrl+C, shutting down...");
+                    cb(self.clone(), BuilderEvent::Exit).await; // call callback with shutdown event
+                    break;
+                }
             }
         }
         Ok(())
