@@ -31,7 +31,7 @@ use tokio::net::UnixStream;
 use tokio::net::unix::OwnedWriteHalf;
 use tokio::sync::mpsc::channel;
 use tokio::task::JoinHandle;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::dispatcher::Dispatcher;
 
@@ -263,9 +263,17 @@ async fn handle_client(mut dispatcher: Dispatcher, stream: UnixStream) -> Result
 /// ```
 pub async fn setup_socket(dispatcher: Dispatcher) -> Result<JoinHandle<Result<()>>> {
     let socket_path = "/tmp/ejd.sock";
-    let _ = std::fs::remove_file(socket_path);
 
-    let listener = tokio::net::UnixListener::bind(socket_path)?;
+    let listener = match tokio::net::UnixListener::bind(socket_path) {
+        Ok(listener) => listener,
+        Err(err) => {
+            warn!("Failed to bind {} - {err}", socket_path);
+            info!("Removing the file and trying again");
+            let _ = std::fs::remove_file(socket_path);
+            tokio::net::UnixListener::bind(socket_path)?
+        }
+    };
+
     tracing::debug!("Socket listening on {}", socket_path);
 
     let handler = tokio::spawn(async move {
