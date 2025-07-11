@@ -82,7 +82,7 @@ async fn checkout(
         let (tx, mut rx) = channel(10);
         let stop = Arc::new(AtomicBool::new(false));
         let runner = Runner::new(command[0], command[1..].to_vec());
-        let result = runner.run(tx, stop);
+        let result = runner.run(tx, stop).await;
 
         while let Some(event) = rx.recv().await {
             match event {
@@ -117,7 +117,7 @@ async fn checkout(
             }
         }
 
-        if let Some(result) = result.await {
+        if let Some(result) = result {
             info!("Result for command {:?} {:?}", command, result);
         }
     }
