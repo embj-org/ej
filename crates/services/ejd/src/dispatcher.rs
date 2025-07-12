@@ -632,13 +632,26 @@ impl DispatcherPrivate {
                 }
 
                 info!("Job {job_id} timed out. Cancelling it");
-                DispatcherPrivate::cancel_running_job(
+                let cancel_result = DispatcherPrivate::cancel_running_job(
                     &self.dispatcher.builders,
                     job,
                     &self.dispatcher.connection,
                     EjJobCancelReason::Timeout,
                 )
-                .await
+                .await;
+                if cancel_result.is_err() {
+                    warn!("Failed to cancel job {job_id}")
+                }
+
+                match self.pending_jobs.pop_front() {
+                    Some(new_job) => {
+                        self.dispatch_job(new_job).await;
+                    }
+                    None => {
+                        self.state = DispatcherState::Idle;
+                    }
+                }
+                cancel_result
             }
         }
     }
