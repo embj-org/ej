@@ -1,7 +1,5 @@
 # Summary
 
-# Introduction
-
 [Introduction](./00-GettingStarted.md)
 
 ---
