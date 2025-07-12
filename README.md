@@ -58,14 +58,7 @@ EJD authentication is built-in. Only builders with a valid token can connect to 
 
 ## Getting Started
 
-### Deploying EJD (Optional)
-
-We provide a ready to use [repository](https://github.com/embj-org/ejd-deployment) to launch an EJD on the server you want.
-This step is optional if you don't need job orchestration and results storage.
-
-### Deploying EJB
-
-TODO
+We recommend following our online guide that will walk you through setting your first testing infrastructure with EJ. It's deployed in [github pages](https://embj-org.github.io/ej/).
 
 #### EJB Configuration
 
