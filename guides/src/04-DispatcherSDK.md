@@ -6,9 +6,9 @@ You can find the SDK's documentation in [crates.io](https://crates.io/crates/ej-
 
 In the previous guide, we successfully set up an EJ Dispatcher and connected builders to create a centralized testing infrastructure. While we can now submit jobs and see results through the `ejcli` tool, we haven't yet explored how to programmatically interact with the dispatcher or analyze the results it produces.
 
-This guide demonstrates how to use the EJ Dispatcher SDK to build custom applications that can submit jobs, retrieve results, and perform automated analysis. You'll create a Rust application that connects to your dispatcher, fetches test results, and validates that different configurations of your embedded application produce consistent outputs.
+This guide demonstrates how to use the EJ Dispatcher SDK to build custom applications that can submit jobs, retrieve results, and perform automated analysis. We'll create a Rust application that connects to our dispatcher, fetches test results, and validates that different configurations of our embedded application produce consistent outputs.
 
-By the end of this guide, you'll understand how to build custom tooling around EJ's dispatcher infrastructure, enabling powerful automation and analysis workflows for your embedded testing pipeline.
+By the end of this guide, we'll understand how to build custom tooling around EJ's dispatcher infrastructure, enabling powerful automation and analysis workflows for our embedded testing pipeline.
 
 ## Prerequisites
 
@@ -20,7 +20,7 @@ Before starting this guide, ensure you have:
   - At least one builder connected and working
   - Successful job submissions using `ejcli`
   - The `kmer` project results from previous guides
-- **Rust toolchain installed**: You'll need `cargo` and the Rust compiler for building the SDK application
+- **Rust toolchain installed**: We'll need `cargo` and the Rust compiler for building the SDK application
   - Install via [rustup.rs](https://rustup.rs/) if you haven't already
 - **Basic Rust knowledge**
 
@@ -68,7 +68,7 @@ async fn do_run(
 The `dispatch_run` function will connect to EJD using the Unix Socket and maintain a connection until the job either finishes or is cancelled.
 
 The job can either be immediately dispatched or put into a queue if there are already running jobs.
-Additionnally, the jobs can be cancelled if, by the time the job leaves the queue there are no builders available or if the job times out.
+Additionally, the jobs can be cancelled if, by the time the job leaves the queue there are no builders available or if the job times out.
 
 Once we get to this line :
 
@@ -98,7 +98,7 @@ pub struct EjRunResult {
 We're mostly interested in the `results: Vec<(EjBoardConfigApi, String)>` which is a dynamic array of `Board Config` and `String` pairs.
 
 - The `EjBoardConfigApi` holds the config ID, name and tags
-- The `String` holds the job results. For our specific use case each `String` will have the following format. 
+- The `String` holds the job results. For our specific use case each `String` will have the following format.
   This is the content of the `results_path` when the `run_script` finishes.
 
 ---
@@ -110,7 +110,6 @@ The `logs` are useful to see what happened between every job phase, `checkout`, 
 ```
 
 ---
-
 
 For our example, the results follow this format:
 
@@ -216,7 +215,6 @@ fn check_results(parsed_results: &Vec<ConfigResult>) {
 
 ## Step 5: Completing our `do_run` function
 
-
 Once we can parse and check the results, the only thing left to do is to use these functions to make sure our run was successful:
 
 ```rust
@@ -303,7 +301,7 @@ async fn main() -> Result<()> {
 ```
 
 `clap` will automatically parse the arguments for you to make sure that everything works correctly.
-You can now try your new application with the same arguments as the `ej-cli`
+We can now try our new application with the same arguments as the `ej-cli`
 
 ## Step 8: Try it out
 
@@ -321,7 +319,7 @@ results_path = "/home/<user>/ej-workspace/results_infinite-loop.txt"
 library_path = "/home/<user>/ej-workspace/kmer"
 ```
 
-And now run your new program:
+And now run our new program:
 
 ```bash
 cd ~/ej-workspace/ejkmer-dispatcher/
@@ -454,28 +452,27 @@ Results OK!
 
 Seeing `Results OK!` means that the job ran succesfully and the results were as expected !
 
-
 ## What's Next
 
 Congratulations! You've now built a complete embedded testing infrastructure with EJ, from basic builder setup to advanced dispatcher integration with custom analysis tools. However, this is just the beginning of what's possible with EJ.
 
 ### Beyond Simple Applications
 
-Throughout these guides, we've used the `kmer` application as our example a relatively simple C program that processes text files.
-The real power of EJ becomes apparent when you apply it to more complex embedded applications:
+Throughout these guides, we've used the `kmer` application as our example - a relatively simple C program that processes text files.
+The real power of EJ becomes apparent when we apply it to more complex embedded applications:
 
 - **Multi-component systems**: Applications with multiple executables, libraries, and configuration files
 - **Real-time systems**: Programs that interact with hardware peripherals, sensors, or communication protocols
 - **Performance-critical applications**: Code that needs to be tested across different optimization levels and compiler flags
 - **Cross-platform applications**: Software that must run on multiple embedded architectures (ARM, RISC-V, x86 embedded, etc.)
 
-Since EJ works with any application that can be built and deployed without manual intervention, you can integrate virtually any embedded project.
-The key is writing appropriate build and deployment scripts (whether shell scripts or using the Builder SDK) that handle your specific application's requirements.
+Since EJ works with any application that can be built and deployed without manual intervention, we can integrate virtually any embedded project.
+The key is writing appropriate build and deployment scripts (whether shell scripts or using the Builder SDK) that handle our specific application's requirements.
 
 ### Advanced Result Analysis and Integration
 
 Our result validation example simply checked that different configurations produced identical outputs.
-In real-world scenarios, you can implement much more sophisticated analysis and integration workflows:
+In real-world scenarios, we can implement much more sophisticated analysis and integration workflows:
 
 #### Communication and Notifications
 
@@ -487,7 +484,7 @@ In real-world scenarios, you can implement much more sophisticated analysis and 
 
 - **Performance trend analysis**: Compare current results with historical data to detect regressions
 - **Automated benchmarking**: Track performance metrics over time and alert on significant changes
-- **Cross-platform validation**: Ensure your application behaves consistently across different hardware platforms
+- **Cross-platform validation**: Ensure our application behaves consistently across different hardware platforms
 
 #### Result Presentation and Documentation
 
@@ -501,8 +498,8 @@ EJ transforms embedded testing from a manual, error-prone process into a reliabl
 By centralizing job management, providing proper cancellation handling, and offering programmatic access to results,
 EJ enables the same level of testing sophistication in embedded development that web developers take for granted.
 
-The journey from a simple shell script to a full distributed testing infrastructure demonstrates how EJ scales with your needs - start simple, then add complexity as your requirements grow.
-From a solo developer with a single Raspberry Pi to a company managing hundreds of embedded devices EJ provides the tools to build a testing infrastructure that grows with your project.
+The journey from a simple shell script to a full distributed testing infrastructure demonstrates how EJ scales with our needs - start simple, then add complexity as your requirements grow.
+From a solo developer with a single Raspberry Pi to a company managing hundreds of embedded devices, EJ provides the tools to build a testing infrastructure that grows with your project.
 
 Happy testing!
 

@@ -4,21 +4,21 @@ You can find the SDK's documentation in [crates.io](https://crates.io/crates/ej-
 
 ## Overview
 
-In the previous guide, we successfully set up a basic EJ Builder using shell scripts to deploy and test applications on embedded hardware. While this approach works well for simple scenarios, you may have encountered some limitations - particularly around handling long-running processes or cleaning up after interrupted tests.
+In the previous guide, we successfully set up a basic EJ Builder using shell scripts to deploy and test applications on embedded hardware. While this approach works well for simple scenarios, we may have encountered some limitations - particularly around handling long-running processes or cleaning up after interrupted tests.
 
-This guide explores those limitations and demonstrates how the EJ Builder SDK provides robust solutions for production deployments. You'll learn how to convert your shell scripts into a proper Rust application that can handle job cancellation, manage resources properly, and integrate seamlessly with advanced EJ features.
+This guide explores those limitations and demonstrates how the EJ Builder SDK provides robust solutions for production deployments. We'll learn how to convert our shell scripts into a proper Rust application that can handle job cancellation, manage resources properly, and integrate seamlessly with advanced EJ features.
 
-By the end of this guide, you'll have a production-ready builder setup that can handle complex deployment scenarios with confidence.
+By the end of this guide, we'll have a production-ready builder setup that can handle complex deployment scenarios with confidence.
 
 ## Prerequisites
 
 Before starting this guide, ensure you have:
 
 - **Completed Guide 01**: This guide builds directly on the EJ Builder setup from the previous guide
-- **Rust toolchain installed**: You'll need `cargo` and the Rust compiler
-  - Install via [rustup.rs](https://rustup.rs/) if you haven't already
+- **Rust toolchain installed**: We'll need `cargo` and the Rust compiler
+  - Install via [rustup.rs](https://rustup.rs/) if we haven't already
   - No prior Rust experience required - the guide explains all concepts as we go
-- **Your working EJ Builder setup**: From the previous guide, including:
+- **Our working EJ Builder setup**: From the previous guide, including:
   - The `kmer` project configured and working
   - SSH access to your target device (Raspberry Pi)
   - The `config.toml` file with your board configurations
@@ -30,7 +30,7 @@ In the previous guide, we set up a basic EJ Builder using shell scripts. While t
 
 Let's revisit what happens when we deploy applications using basic SSH and shell scripts, particularly with our Raspberry Pi example from Guide 01.
 
-For this, add this new config to your `~/ej-workspace/config.toml`:
+For this, let's add this new config to our `~/ej-workspace/config.toml`:
 
 **NOTE**: Replace `<user>` with your username.
 
@@ -86,7 +86,7 @@ Now if we run the validation again:
 ejb --config config.toml validate
 ```
 
-Something you may not expect happens -  EJB (or rather the underlying `run.sh` script) fails ! 
+Something we may not expect happens - EJB (or rather the underlying `run.sh` script) fails!
 
 Taking a look at the logs, we can see that `scp` failed because the `infinite-loop`
 file is locked as it's still being executed inside our target device.
@@ -102,11 +102,11 @@ To actually stop it we need to connect to our Raspberry Pi and kill it:
 ssh ${PI_USERNAME}@${PI_ADDRESS} "killall infinite-loop"
 ```
 
-This poses a real problem when to deploy this to a production environment as we'd like to 
-make sure if one job fails, we want to be able to simply consider this job as a failure and run a new job later without having to manually connect to our target board to clean up job leftovers.
+This poses a real problem when deploying this to a production environment as we'd like to
+make sure that if one job fails, we want to be able to simply consider this job as a failure and run a new job later without having to manually connect to our target board to clean up failed job leftovers.
 
 EJ solves this problem by providing an SDK - called `EJ Builder SDK` - that handles communicating with EJB through an exposed Unix Socket.
-The Builder SDK abstracts all of this for you with some pretty simple boilerplate code. Let's create a script to see what it looks like.
+The Builder SDK abstracts all of this for us with some pretty simple boilerplate code. Let's create a script to see what it looks like.
 
 ## Step 1: Setup an application with the EJB SDK
 
@@ -119,7 +119,7 @@ cargo add tokio -F macros -F rt-multi-thread -F process # Async runtime
 cargo add num_cpus # (Optional) Used to be able to write -j$(nprocs) during the build phase
 ```
 
-Now add this boilerplate code to your `src/main.rs` file:
+Now let's add this boilerplate code to our `src/main.rs` file:
 
 ```rust
 use ej_builder_sdk::{Action, BuilderEvent, BuilderSdk, prelude::*};
@@ -148,31 +148,30 @@ use ej_builder_sdk::{Action, BuilderEvent, BuilderSdk, prelude::*};
 
 This line is including stuff we need from the `ej_builder_sdk` that we added to our project when we ran the `cargo add ej-builder-sdk` command.
 
-- `Action`: is a Rust Enum used to describe the action this script should take (either `Build` or `Run`). This let's you use the same script as your build and run script - altough this isn't mandatory.
+- `Action`: is a Rust Enum used to describe the action this script should take (either `Build` or `Run`). This lets us use the same script as our build and run script - although this isn't mandatory.
 - `BuilderEvent`: is a Rust Enum that describe an _Event_ received by EJB. For now, the only event we can expect is `Exit` but there may be others in the future as EJ evolves.
 - `BuilderSDK`: is the main BuilderSDK data structure, it will contain every information passed by EJB, this includes:
 
-    - The action to take (`Build` or `Run`)
-    - The path to the `config.toml` file
-    - The current board name
-    - The current board config name
-      
-    These informations allow you to use a single script to handle building and testing your application throughout multiple boards and configs.
+  - The action to take (`Build` or `Run`)
+  - The path to the `config.toml` file
+  - The current board name
+  - The current board config name
+
+  These informations allow us to use a single script to handle building and testing our application throughout multiple boards and configs.
 
 - `prelude::*`: is the BuilderSDK _crate_ prelude that imports a `Result` and a common `Error` type that can be used by your script.
-    
+
 ```rust
 #[tokio::main]
 async fn main() -> Result<()> {
 ```
 
-These two lines allows us to describe our main function as a Asynchronous - [Wikipedia](<https://en.wikipedia.org/wiki/Asynchrony_(computer_programming)>).
+These two lines allow us to describe our main function as Asynchronous - [Wikipedia](<https://en.wikipedia.org/wiki/Asynchrony_(computer_programming)>).
 
-BuilderSDK uses _async_ tasks under the hood to manage the connection with EJB in a transparent way so this will allow you to call these functions.
+BuilderSDK uses _async_ tasks under the hood to manage the connection with EJB in a transparent way so this will allow us to call these functions.
 
-The return type of our main function is the `Result` type. This `Result` typed is pulled from the BuilderSDK `prelude` and uses its internal `Error` type as the `Result` error type.
-This allows you to use the `?` operator to easily handle errors in your application.
-
+The return type of our main function is the `Result` type. This `Result` type is pulled from the BuilderSDK `prelude` and uses its internal `Error` type as the `Result` error type.
+This allows us to use the `?` operator to easily handle errors in our application.
 
 ```rust
     let sdk = BuilderSdk::init(|sdk, event| async move {
@@ -183,11 +182,11 @@ This allows you to use the `?` operator to easily handle errors in your applicat
     .await?;
 ```
 
-This portion of code inits the `BuilderSDK`. The return type will be a `BuilderSDK` or an error if something went wrong during the initialization process.
+This portion of code initializes the `BuilderSDK`. The return type will be a `BuilderSDK` or an error if something went wrong during the initialization process.
 
 The `BuilderSDK::init` function takes in an `async` function callback that will be called when it receives a new event from EJB.
 
-This let's us handle these events the way we see fit (eg: by killing the process in our target board when we receive an exit request).
+This lets us handle these events the way we see fit (e.g., by killing the process in our target board when we receive an exit request).
 
 The `.await` is necessary because the init function is `async`, this essentially tells the program to wait for the
 execution of this call instead of deferring it for later.
@@ -202,7 +201,7 @@ The `?` operator will return from the main function (and thus the application) i
 ```
 
 Now that we've initialized everything, the `sdk` variable holds every information passed by EJB.
-You can use it to query the action to take, the path to the config file, the board name and the board config name allowing you to create generic scripts that handle your build and deployment needs
+We can use it to query the action to take, the path to the config file, the board name and the board config name allowing us to create generic scripts that handle our build and deployment needs.
 
 Here we are _matching_ on the action to take (either `Action::Build` or `Action::Run`).
 
@@ -210,7 +209,7 @@ Let's now write what the application should do when asked to build and run our a
 
 ## Step 2: Convert our build shell script to Rust code
 
-As a reminder, our current build script looks likes this:
+As a reminder, our current build script looks like this:
 
 ```bash
 cmake -B ${SCRIPTPATH}/kmer/build-pi \
@@ -222,7 +221,7 @@ cmake --build ${SCRIPTPATH}/kmer/build-pi -j$(nproc)
 
 First off let's write some utility functions to manage the paths we need for this.
 As a reminder, EJB provides us with the absolute path to our `config.toml`,
-following the directory structure we setup for our project we can find the workspace folder as the parent of our `config.toml` file:
+following the directory structure we set up for our project we can find the workspace folder as the parent of our `config.toml` file:
 
 ```rust
 use std::path::{Path, PathBuf}
@@ -259,7 +258,6 @@ fn toolchain_file(config_path: &Path) -> PathBuf {
 ```
 
 Once we have these helper functions we can write a very elegant build function:
-
 
 ```rust
 use tokio::process::Command;
@@ -364,7 +362,7 @@ async fn run_application(sdk: &BuilderSdk) -> Result<()> {
 
 ## Step 4: Handling cancellation using the EJ Builder SDK
 
-Finally, the reason we started the journey of writing a rust program instead of a shell script was to be able to handle cancelling our job correctly to not leave a process running forever in our Raspberry Pi.
+Finally, the reason we started the journey of writing a Rust program instead of a shell script was to be able to handle cancelling our job correctly to not leave a process running forever in our Raspberry Pi.
 
 Here we can open a new SSH connection to kill the process running on our target board, the same way we did manually before:
 
@@ -383,7 +381,7 @@ async fn kill_application_in_rpi(sdk: &BuilderSdk) -> Result<()> {
 
 ## Step 5: Putting it all together
 
-Using our new functions, we can finish off writting our main application:
+Using our new functions, we can finish off writing our main application:
 
 **NOTE**: Replace `PI_USERNAME` and `PI_ADDRESS` with their corresponding values.
 
@@ -519,7 +517,7 @@ async fn main() -> Result<()> {
 
 ```
 
-Now, whenever a job is cancelled by either EJB or EJD (Guide 03) the script will receive the `Exit` event and will clean the necessary ressources.
+Now, whenever a job is cancelled by either EJB or EJD (Guide 03) the script will receive the `Exit` event and will clean the necessary resources.
 
 ## Step 6: Build your application
 
@@ -528,11 +526,11 @@ cd ~/ej-workspace/ejkmer-builder
 cargo build --release
 ```
 
-You can find your application inside the `~/ej-workspace/ejkmer-builder/target/release` folder.
+The application is now available inside the `~/ej-workspace/ejkmer-builder/target/release` folder.
 
 ## Step 7: Update your EJB config
 
-We can use this new application handle every build and run configuration so now we need to tell EJB, through its config, to use it.
+We can use this new application to handle every build and run configuration so now we need to tell EJB, through its config, to use it.
 
 We can use some `sed` magic to avoid having to change every line manually:
 
@@ -587,8 +585,8 @@ library_path = "/home/<user>/ej-workspace/kmer"
 
 #### TIP
 
-Putting the application in your `$PATH` will make it easier to invoke it, for this we recommend
-installing it in your PC directly :
+Putting the application in our `$PATH` will make it easier to invoke it, for this we recommend
+installing it in our PC directly:
 
 ```bash
 cargo install --path ~/ej-workspace/ejkmer-builder
@@ -607,7 +605,7 @@ And of course a `sed` command to avoid having to do it manually:
 sed -i 's/script = .*/script = "ejkmer-builder"/g' ~/ej-workspace/config.toml
 ```
 
-This makes your `config.toml` easier to read and allows you to freely move your source code if you wish so
+This makes our `config.toml` easier to read and allows us to freely move our source code if we wish so.
 
 ## Step 8: Test the new script
 
@@ -622,8 +620,8 @@ cd ~/ej-workspace
 ejb --config config.toml validate
 ```
 
-You can again quit EJB with `CTRL+C` and you'll be able to see that the `infinite-loop` 
-is not running on your Raspberry Pi even after abruptly quitting the whole process.
+We can again quit EJB with `CTRL+C` and we'll be able to see that the `infinite-loop`
+is not running on our Raspberry Pi even after abruptly quitting the whole process.
 
 ```bash
 ssh ${PI_USERNAME}@${PI_ADDRESS} "killall infinite-loop"
@@ -634,9 +632,9 @@ infinite-loop: no process found
 
 - Proper cancellation handling. When EJB sends an exit signal, your script can clean up running processes on target devices instead of leaving them orphaned
 - Single binary approach. One application handles both building and running (though you could do this with shell scripts too, it's just arguably harder)
-- Custom result formats. Our example just saves program output to a file, but you can collect and format results however makes sense for your use case
-- Easy integration testing. Write tests that spawn TCP listeners, launch your program on the target device, and verify the results in real-time
-- Unlimited possibilities. Once you're using a real programming language, you can do things like:
+- Custom result formats. Our example just saves program output to a file, but we can collect and format results however makes sense for our use case
+- Easy integration testing. Write tests that spawn TCP listeners, launch our program on the target device, and verify the results in real-time
+- Unlimited possibilities. Once we're using a real programming language, we can do things like:
   - Monitor system resources (CPU, memory, network) during test execution
   - Send notifications to Slack when tests complete
   - Generate detailed HTML reports with charts and graphs
@@ -646,19 +644,19 @@ infinite-loop: no process found
 ## Disadvantages of using the EJ Builder SDK
 
 - Setup overhead. It takes longer to get started compared to throwing together a quick shell script
-- Compile-test cycle: Every change requires a `cargo build` before you can test it, which slows down rapid iteration 
-    - Can be minimized by tools like `cargo-watch`
+- Compile-test cycle: Every change requires a `cargo build` before you can test it, which slows down rapid iteration
+  - Can be minimized by tools like `cargo-watch`
 - Rust knowledge required: You need to be comfortable with Rust syntax, and async programming
-    - Though the SDK could be ported to other languages very easily. Contributions are welcome 
+  - Though the SDK could be ported to other languages very easily. Contributions are welcome
 - Binary management: Need to keep track of compiled binaries and make sure they're available where EJB expects them.
-    - Installing the application with `cargo install` solves this
-- Overkill for simple tasks: If you're just running basic commands and don't need to clean up any ressources when a job fails, a shell script might be simpler
-    - Eg: when running tests in an MCU where every deployment erases the board's flash
+  - Installing the application with `cargo install` solves this
+- Overkill for simple tasks: If we're just running basic commands and don't need to clean up any resources when a job fails, a shell script might be simpler
+  - E.g., when running tests in an MCU where every deployment overwrites the board's flash memory.
 - You get to write rust code
 
 ## Next Steps
 
-At this point, you have a fully functional EJ Builder setup that can handle complex deployments with proper cancellation handling. EJB works perfectly fine as a standalone tool - you can integrate it into CI/CD pipelines or use it on your development machine to spin up integration tests in the background while you work on other tasks.
+At this point, we have a fully functional EJ Builder setup that can handle complex deployments with proper cancellation handling. EJB works perfectly fine as a standalone tool - we can integrate it into CI/CD pipelines or use it on our development machine to spin up integration tests in the background while we work on other tasks.
 
 You may have noticed that throughout this guide, we haven't stored results anywhere and we've only worked with a single builder. This is completely fine for many use cases, but if you're looking at larger-scale deployments with multiple builders, you might want something more robust.
 
@@ -670,7 +668,7 @@ In [Guide 03 - Dispatcher](03-Dispatcher.md), we'll explore the EJ Dispatcher (E
 - Provide authentication and access control
 - Enable remote job submission and monitoring
 
-The dispatcher transforms EJ from a single-builder tool into a powerful distributed testing platform, but it's entirely optional depending on your needs.
+The dispatcher transforms EJ from a single-builder tool into a powerful distributed testing platform, but it's entirely optional depending on our needs.
 
 ---
 

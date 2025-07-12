@@ -4,7 +4,7 @@
 
 In the previous guides, we learned how to set up a single EJ Builder and run embedded tests on target hardware. While this works perfectly for individual development and experimentation, real-world embedded development often involves teams, multiple hardware configurations, and integration with CI/CD pipelines.
 
-This guide introduces the EJ Dispatcher (EJD) - a centralized service that transforms your individual EJ Builder into a scalable, multi-user testing infrastructure. You'll learn how to set up a dispatcher, connect multiple builders, and coordinate testing across your development team.
+This guide introduces the EJ Dispatcher (EJD) - a centralized service that transforms our individual EJ Builder into a scalable, multi-user testing infrastructure. We'll learn how to set up a dispatcher, connect multiple builders, and coordinate testing across our development team.
 
 ## Prerequisites
 
@@ -105,15 +105,15 @@ docker compose up -d
 
 If you're looking into deploying EJD into a public network, we very highly recommend setting it up with TLS support.
 A skeleton example is available in the same git repository inside the `tls-example` folder.
-It uses `Traefik` to setup a reverse proxy which will provide TLS support for you.
+It uses `Traefik` to set up a reverse proxy which will provide TLS support for you.
 
 **NOTE**: It's not a ready-to-use example. Many things depend on your specific setup like DNS provider and URL but it should help you getting started.
 
-## Step 2: Setup permissions to access the EJD socket
+## Step 2: Set up permissions to access the EJD socket
 
-During setup, a Unix Socket was created that can be used to communicate with. By default, you need `root` permissions to access this socket.
-This is a security measure as you don't need any sort of authentication when communicating through the socket. Instead the authentication is managed by Linux.
-In most setups it'll be used to create the first application user and test your setup and for this we must be explicit about giving ourselves permissions.
+During setup, EJD create an Unix Socket that can be used to communicate with the tool. By default, we need `root` permissions to access this socket.
+This is a security measure as EJD doesn't perform any sort of authentication when communicating through the socket. Instead the authentication is managed by Linux.
+In most setups it'll be used to create the first application user and test our setup and for this we must be explicit about giving ourselves permissions.
 
 Here we will create a new `group` called `ejd` and change the `group` ownership of the socket file to this new group.
 Once we have done that, we'll add the current user to the `ejd` group which will allow us to use the `socket` provided by EJD without having to prefix every command with `sudo`.
@@ -160,9 +160,8 @@ CreateRootUserOk(EjClientApi { id: 63c16857-0372-4add-a5bf-c0bd266fe650, name: "
 
 ## Step 4: Register your builder
 
-
 To create the builder, we'll use the rest API interface from EJD.
-This can be created from a different PC as long as you have the correct permissions and access to the port EJD is exposed to.
+This can be created from a different PC as long as we have the correct permissions and access to the port EJD is exposed to.
 
 **NOTE**: Replace `<username>` in the command and enter your password when prompted.
 
@@ -173,12 +172,12 @@ export EJB_ID=<builder_id>
 export EJB_TOKEN=<builder_token>
 ```
 
-The `EJB_ID` and `EJB_TOKEN` provided allows you to connect your EJB instance to EJD.
+The `EJB_ID` and `EJB_TOKEN` provided allow us to connect our EJB instance to EJD.
 Again, this connection will use the HTTP(s) interface.
 
 ## Step 5: Connecting EJB to EJD
 
-Export the two environment variables that you got from the last command and launch EJB:
+Export the two environment variables that we got from the last command and launch EJB:
 
 ```bash
 export EJB_ID=<builder_id>
@@ -201,14 +200,14 @@ This allows you to later check every job associated with a specific commit.
 
 EJB will automatically check out the new version for you before building and running your application.
 
-When dispatching a job you need to provide:
+When dispatching a job we need to provide:
 
 - The commit hash associated with the current job.
-- The remote url associated with this commit.
-    - This allows you to run jobs from forks of your repository for instance.
+- The remote URL associated with this commit.
+  - This allows us to run jobs from forks of our repository for instance.
 - The timeout time in seconds after which the job will be cancelled.
 
-Optionnally, if you have private repositories and don't want to setup an `ssh` key in the machine hosting your builder, you may also provide a token that would allow git to fetch your private repository using `https`.
+Optionally, if you have private repositories and don't want to set up an `ssh` key in the machine hosting our builder, you may also provide a token that would allow git to fetch our private repository using `https`.
 
 Once again, `ej-cli` can be used to test your setup and making sure everything is working correctly.
 
@@ -222,7 +221,7 @@ ejcli dispatch-build \
  --remote-url https://github.com/embj-org/kmer
 ```
 
-You should see something like this as a result:
+We should see something like this as a result:
 
 ```bash
 =======================================
@@ -288,7 +287,7 @@ HEAD is now at eb7c6cb feat: add infinite loop example
 
 ### Understanding the internals
 
-Congratulations, you have now seen how we can dispatch a new job to EJD that gets picked up by EJB and is run on our target board.
+Congratulations, we have now seen how we can dispatch a new job to EJD that gets picked up by EJB and is run on our target board.
 
 ![](media/build_dispatch_process.svg)
 
@@ -296,7 +295,7 @@ In our specific use case, we have one builder instance with one board connected 
 
 ### Job Cancellation and Timeouts
 
-You can also use the `dispatch-run` command to build and run your application like we've done before.
+We can also use the `dispatch-run` command to build and run our application like we've done before.
 
 The process is very similar to the `dispatch-build` command but it will also run the application on the board and wait for it to finish.
 
@@ -310,24 +309,24 @@ ejcli dispatch-run \
 
 In this case, since we still have our `infinite-loop` application being deployed, the job will eventually time out after 20 seconds.
 
-Analyzing the results you'll be able to see 4 log entries for the 4 configs but only 3 result entries as the last config never actually produced any results before the job got cancelled.
+Analyzing the results we'll be able to see 4 log entries for the 4 configs but only 3 result entries as the last config never actually produced any results before the job got cancelled.
 
 This timeout feature relies on the EJ Builder SDK presented in the last guide.
 The same way EJD sent the `Build` command in the above example, after the timeout is reached, EJD will send a `Cancel` command to the builder.
 The builder will then notify the script performing the build that the job was cancelled. The Builder SDK will receive this cancellation command
 and run the cleanup code that provided in our `ejkmer-builder` application.
 
-In cases you don't use the Builder SDK, the builder will eventually kill the process without giving it a chance to clean up, this is why we highly recommend using the Builder SDK for all your builds.
+In cases we don't use the Builder SDK, the builder will eventually kill the process without giving it a chance to clean up, this is why we highly recommend using the Builder SDK for all our builds.
 
 ## Next Steps
 
-Congratulations ! You have successfully set up an EJ Dispatcher and connected your first builder. This is a significant step towards building a scalable and manageable testing infrastructure.
+Congratulations! You have successfully set up an EJ Dispatcher and connected your first builder. This is a significant step towards building a scalable and manageable testing infrastructure.
 
 You may have noticed that we haven't yet covered how to actually parse the results of the job and how to fetch results from previous jobs. EJ provides two solutions for this:
 
-- The first solution is to directly do it inside your `ejkmer-builder` application. This is a good approach if you don't need any history of the previous results and only care about what the current job produced.
+- The first solution is to directly do it inside our `ejkmer-builder` application. This is a good approach if we don't need any history of the previous results and only care about what the current job produced.
 - The second solution is to use the EJ Dispatcher SDK to create a custom CLI tool that can interact with EJD programmatically.
-  The same way the `ejcli` tool allows you to interact with EJD, you can create your own custom CLI tool that can submit jobs, query their status, and retrieve results. Additionally, you're free to implement any custom logic you need to parse and analyze the results.
+  The same way the `ejcli` tool allows us to interact with EJD, we can create our own custom CLI tool that can submit jobs, query their status, and retrieve results. Additionally, we're free to implement any custom logic we need to parse and analyze the results.
 
 In [Guide 04 - Dispatcher SDK](04-DispatcherSDK.md), we'll create a custom CLI tool that can:
 
@@ -339,4 +338,4 @@ This SDK-based approach enables powerful automation and integration possibilitie
 
 ---
 
-**Production Tip**: When deploying EJD to an open network, always use HTTPS with a reverse proxy like Traefik or Nginx to secure your dispatcher. This prevents unauthorized access and ensures encrypted communication between builders and the dispatcher. A squeleton example using Traefik is available in the [ejd-deployment repository](https://github.com/embj-org/ejd-deployment/tree/main/tls-example)
+**Production Tip**: When deploying EJD to an open network, always use HTTPS with a reverse proxy like Traefik or Nginx to secure our dispatcher. This prevents unauthorized access and ensures encrypted communication between builders and the dispatcher. A skeleton example using Traefik is available in the [ejd-deployment repository](https://github.com/embj-org/ejd-deployment/tree/main/tls-example)

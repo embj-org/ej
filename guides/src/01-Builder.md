@@ -1,7 +1,7 @@
-# Guide 01: Setting Up Your First EJ Builder
+# Guide 01: Setting Up Our First EJ Builder
 
-This guide will walk you through setting up your first EJ Builder (EJB) and deploying a simple application to a Raspberry Pi.
-By the end of this guide, you'll have a working EJ Builder that can build and run applications on physical hardware.
+This guide will walk us through setting up our first EJ Builder (EJB) and deploying a simple application to a Raspberry Pi.
+By the end of this guide, we'll have a working EJ Builder that can build and run applications on physical hardware.
 
 ## Overview
 
@@ -16,7 +16,7 @@ In this guide, we'll:
 
 Before starting, ensure you have:
 
-- A Raspberry Pi with Raspberry Pi OS installed
+- A Raspberry Pi with Raspberry Pi OS 64 bit installed
 - SSH access to your Raspberry Pi
 - [Cargo](https://rustup.rs/) installed on your host machine
 - The [AArch64 GNU/Linux toolchain](https://developer.arm.com/-/media/Files/downloads/gnu-a/10.3-2021.07/binrel/gcc-arm-10.3-2021.07-x86_64-aarch64-none-linux-gnu.tar.xz?rev=1cb9c51b94f54940bdcccd791451cec3&hash=A56CA491FA630C98F7162BC1A302F869) in your PATH.
@@ -83,7 +83,7 @@ If any of these steps fail, ensure you have the correct toolchain installed and 
 
 --- 
 
-Now that we've ensured everything is working, it's now time to use EJ.
+Now that we've ensured everything is working, it's time to use EJ.
 
 ## Step 2: Install EJB
 
@@ -118,9 +118,9 @@ cmake --build ${SCRIPTPATH}/kmer/build-pi -j$(nproc)
 
 ### Run Script (`run.sh`)
 
-Same thing for the run script but right now what we'll be doing is only testing the original implementation
-Additionnally, we need to output the program results to a file so they can be used later. 
-Finally, besides the results we'll actually time the application
+Same thing for the run script but right now what we'll be doing is only testing the original implementation.
+Additionally, we need to output the program results to a file so they can be used later. 
+Finally, besides the results we'll actually time the application:
 
 ```bash
 #!/bin/bash
@@ -308,7 +308,7 @@ scp -r ${SCRIPTPATH}/kmer/build-pi/${BOARD_CONFIG_NAME} \
     ${SCRIPTPATH}/kmer/inputs ${PI_USERNAME}@${PI_ADDRESS}:~
 
 ssh ${PI_USERNAME}@${PI_ADDRESS} \
-    "time ./${BOARD_CONFIG_NAME} inputs/pi_dec_1k.txt 3" 2>&1 | tee ${SCRIPTPATH}/results_${BOARD_CONFI_NAME}.txt
+    "time ./${BOARD_CONFIG_NAME} inputs/pi_dec_1k.txt 3" 2>&1 | tee ${SCRIPTPATH}/results_${BOARD_CONFIG_NAME}.txt
 ```
 
 Here, by using the board config name that is automatically passed to us by EJB (`argv[4]`),
@@ -466,34 +466,34 @@ user	0m0.005s
 sys	0m0.006s
 ```
 
-### Understading what just happened
+### Understanding what just happened
 
-When you run a job, EJB follows this process:
+When we run a job, EJB follows this process:
 
 #### 1. Build phase
 EJB executes each build script sequentially
 
-Build scripts are run **sequentially**. This allows you to use every available core to speed up your build process for each individual config.
+Build scripts are run **sequentially**. This allows us to use every available core to speed up our build process for each individual config.
 
-Don't share build folders for multiple configs as EJB won't run your config before every other config has finished building.
+Don't share build folders for multiple configs as EJB won't run our config before every other config has finished building.
 
 #### 2. Execution phase
 EJB executes each run script
 
-Run scripts are run in **parallel** accross different boards and **sequentially** for each board config.
+Run scripts are run in **parallel** across different boards and **sequentially** for each board config.
 
-You must not share the same results path between multiple boards to avoid race conditions.
+We must not share the same results path between multiple boards to avoid race conditions.
 
 #### 3. Result collection
 EJB collects the results from the `results_path` once the run finishes. This phase happens at the
 same time as phase 2, the results are collected once the corresponding run script finishes.
 
-You can use whatever you want as a way to represent your test results,
+We can use whatever we want as a way to represent our test results,
 EJ will simply collect what's inside the `results_path` at the moment the `run_script` ends.
 
 ## Next Steps
 
-Congratulations! You now have a very simple but working EJ Builder setup which can already be used to automate your testing environnement. 
-The same way we created our Raspberry PI board, we could've just as easily added more board descriptions, there's no limit at how many boards and configs EJB can manage.
+Congratulations! We now have a very simple but working EJ Builder setup which can already be used to automate our testing environment. 
+The same way we created our Raspberry PI board, we could've just as easily added more board descriptions, there's no limit to how many boards and configs EJB can manage.
 
-The simple shell script approach, altough easy to setup, has some limitations, even for this simple example. If you can't think of any, don't worry, we'll dive into those in [Guide 02 - Builder SDK](02-BuilderSDK.md) which will present these issues and how the `Builder SDK` solves them.
+The simple shell script approach, although easy to setup, has some limitations, even for this simple example. If you can't think of any, don't worry, we'll dive into those in [Guide 02 - Builder SDK](02-BuilderSDK.md) which will present these issues and how the `Builder SDK` solves them.

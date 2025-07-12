@@ -73,15 +73,15 @@ EJ doesn't make assumptions about how to build, run, or manage your test results
 - **Builder SDK** - Create custom build and run scripts with seamless builder communication and job cancellation support
 - **Dispatcher SDK** - Interface with the dispatcher to dispatch jobs and retrieve results
 
-This gives you complete control over how tests are built and deployed, how results are parsed, and board-specific configurations and requirements.
+This gives us complete control over how tests are built and deployed, how results are parsed, and board-specific configurations and requirements.
 
 ## Guide Structure
 
-This guide series will walk you through setting up and using EJ from basic to advanced scenarios:
+This guide series will walk us through setting up and using EJ from basic to advanced scenarios:
 
 ### [01 - Builder](01-Builder.md)
 
-Learn how to set up your first EJ Builder with a basic configuration. We'll deploy a simple application to a Raspberry Pi as a practical example, covering:
+Learn how to set up our first EJ Builder with a basic configuration. We'll deploy a simple application to a Raspberry Pi as a practical example, covering:
 
 - Installing and configuring EJB
 - Creating your first board configuration
