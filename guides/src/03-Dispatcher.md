@@ -64,13 +64,12 @@ The EJ Dispatcher becomes essential when you encounter these scenarios:
                 │                                 │
                 │  ┌─────────────────────────────┐│
                 │  │     Job Queue Manager       ││
-                │  │  - Queuing & Prioritization ││
-                │  │  - Load Balancing           ││
+                │  │  - Queue and dispatch jobs  ││
                 │  └─────────────────────────────┘│
                 │  ┌─────────────────────────────┐│
                 │  │     Result Storage          ││
-                │  │  - Database Management      ││
-                │  │  - Historical Data          ││
+                │  │  - Database management      ││
+                │  │  - Historical data          ││
                 │  └─────────────────────────────┘│
                 │  ┌─────────────────────────────┐│
                 │  │     Authentication          ││
@@ -90,7 +89,7 @@ The EJ Dispatcher becomes essential when you encounter these scenarios:
 ## Step 1: Installing EJD
 
 The easiest way to deploy EJD is using the official `Docker` setup.
-We have setup [a ready-to-use git repository](https://github.com/embj-org/ejd-deployment)
+EJ provides [a ready-to-use git repository](https://github.com/embj-org/ejd-deployment)
 that uses `Docker` and `Docker Compose` to setup EJD.
 
 ```bash
@@ -105,19 +104,19 @@ docker compose up -d
 #### TLS Support
 
 If you're looking into deploying EJD into a public network, we very highly recommend setting it up with TLS support.
-A skeleton example is available in the same repository inside `tls-example`.
+A skeleton example is available in the same git repository inside the `tls-example` folder.
 It uses `Traefik` to setup a reverse proxy which will provide TLS support for you.
 
-**NOTE**: It's not a ready-to-use example. Many things depend on your specific setup like DNS provider and URL.
+**NOTE**: It's not a ready-to-use example. Many things depend on your specific setup like DNS provider and URL but it should help you getting started.
 
 ## Step 2: Setup permissions to access the EJD socket
 
 During setup, a Unix Socket was created that can be used to communicate with. By default, you need `root` permissions to access this socket.
 This is a security measure as you don't need any sort of authentication when communicating through the socket. Instead the authentication is managed by Linux.
-In most setups it'll be used to create the first application user and test your setup and for this we must be explicit about giving ourselves the permissions.
+In most setups it'll be used to create the first application user and test your setup and for this we must be explicit about giving ourselves permissions.
 
-Here we will create a new `group` called `ejd` and change the `group` ownership of the socket file to this new `ejd`.
-Once we have done that, we'll add the current user to this new `group` which will allow using this `socket` without having to prefix every command with `sudo`.
+Here we will create a new `group` called `ejd` and change the `group` ownership of the socket file to this new group.
+Once we have done that, we'll add the current user to the `ejd` group which will allow us to use the `socket` provided by EJD without having to prefix every command with `sudo`.
 
 ```bash
 # Create the `ejd` group
@@ -135,13 +134,14 @@ sudo chown :ejd ~/ejd-deployment/ejd/tmp/ejd.sock
 sudo chmod g+w ~/ejd-deployment/ejd/tmp/ejd.sock
 
 # Activate the group changes in the current shell session
+# You may need to log out and login again
 newgrp ejd
 ```
 
 ## Step 3: Create your first user
 
 EJ provides `ejcli`, a cli tool that interfaces with EJD.
-You can install it the same way we installed `EJB` in the first guide
+You can install it the same way we installed EJB in the first guide
 
 ```bash
 cargo install ejcli
@@ -149,7 +149,7 @@ cargo install ejcli
 
 Now create your first user.
 
-**NOTE**: Replace <username> in the command:
+**NOTE**: Replace `<username>` in the command and enter your password when prompted.
 
 ```bash
 ejcli create-root-user --socket ~/ejd-deployment/ejd/tmp/ejd.sock --username <username>
@@ -158,16 +158,13 @@ Password >
 CreateRootUserOk(EjClientApi { id: 63c16857-0372-4add-a5bf-c0bd266fe650, name: "<username>" })
 ```
 
-Enter your password when prompted.
-
 ## Step 4: Register your builder
 
-**NOTE**: Replace <username> in the command:
 
 To create the builder, we'll use the rest API interface from EJD.
 This can be created from a different PC as long as you have the correct permissions and access to the port EJD is exposed to.
 
-Enter your password when prompted.
+**NOTE**: Replace `<username>` in the command and enter your password when prompted.
 
 ```bash
 ejcli create-builder --server http://localhost:3000 --username <username>
@@ -177,11 +174,11 @@ export EJB_TOKEN=<builder_token>
 ```
 
 The `EJB_ID` and `EJB_TOKEN` provided allows you to connect your EJB instance to EJD.
-Again, this connection will use the HTTP(s) interface and as such.
+Again, this connection will use the HTTP(s) interface.
 
 ## Step 5: Connecting EJB to EJD
 
-Export the two environment variables gotten from the last command and launch EJB:
+Export the two environment variables that you got from the last command and launch EJB:
 
 ```bash
 export EJB_ID=<builder_id>
@@ -201,16 +198,17 @@ Once we start a connection, EJB will wait until a new job request comes from EJD
 
 Every job that can be dispatched through EJD is associated with a specific git commit hash.
 This allows you to later check every job associated with a specific commit.
-EJB will automatically check out the new version for you before building.
+
+EJB will automatically check out the new version for you before building and running your application.
 
 When dispatching a job you need to provide:
 
 - The commit hash associated with the current job.
-- The remote url associated with this commit. (This allows you to run jobs from forks of you repository for instance)
+- The remote url associated with this commit.
+    - This allows you to run jobs from forks of your repository for instance.
 - The timeout time in seconds after which the job will be cancelled.
 
-Optionnally, if you have private repositories and don't want to setup an `ssh` key in the machine hosting your builder,
-you may also provide a token that would allow git to fetch your private repository using `https`.
+Optionnally, if you have private repositories and don't want to setup an `ssh` key in the machine hosting your builder, you may also provide a token that would allow git to fetch your private repository using `https`.
 
 Once again, `ej-cli` can be used to test your setup and making sure everything is working correctly.
 
@@ -325,7 +323,7 @@ In cases you don't use the Builder SDK, the builder will eventually kill the pro
 
 Congratulations ! You have successfully set up an EJ Dispatcher and connected your first builder. This is a significant step towards building a scalable and manageable testing infrastructure.
 
-You may have noticed that we haven't yet covered how to actually parse the results of the job, how to fetch results from previous jobs. EJ provides two solutions for this:
+You may have noticed that we haven't yet covered how to actually parse the results of the job and how to fetch results from previous jobs. EJ provides two solutions for this:
 
 - The first solution is to directly do it inside your `ejkmer-builder` application. This is a good approach if you don't need any history of the previous results and only care about what the current job produced.
 - The second solution is to use the EJ Dispatcher SDK to create a custom CLI tool that can interact with EJD programmatically.

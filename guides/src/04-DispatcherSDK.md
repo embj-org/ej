@@ -1,5 +1,7 @@
 # Guide 04: Building custom tools with the Dispatcher SDK
 
+You can find the SDK's documentation in [crates.io](https://crates.io/crates/ej-dispatcher-sdk)
+
 ## Overview
 
 In the previous guide, we successfully set up an EJ Dispatcher and connected builders to create a centralized testing infrastructure. While we can now submit jobs and see results through the `ejcli` tool, we haven't yet explored how to programmatically interact with the dispatcher or analyze the results it produces.
@@ -20,12 +22,7 @@ Before starting this guide, ensure you have:
   - The `kmer` project results from previous guides
 - **Rust toolchain installed**: You'll need `cargo` and the Rust compiler for building the SDK application
   - Install via [rustup.rs](https://rustup.rs/) if you haven't already
-- **Basic Rust knowledge helpful**: While we'll explain the code, familiarity with these concepts will be useful:
-  - Error handling with `Result` and `?` operator
-  - JSON parsing and data structures
-  - Basic async programming concepts
-  - Package management with `cargo`
-- **Understanding of your test results**: You should know what output format your `kmer` application produces and what constitutes a "correct" result
+- **Basic Rust knowledge**
 
 ## Step 1: Setting up your rust project
 
@@ -43,16 +40,18 @@ cargo add tokio -F macros -F rt-multi-thread
 
 ## Step 2: Using the dispatcher sdk to start a new job
 
-This is pretty straightforward:
+The `dispatcher_sdk` offers you a function to dispatch new jobs easily:
 
 ```rust
 use ej_dispatcher_sdk::prelude::*;
+
 async fn do_run(
     socket: PathBuf,
     seconds: u64,
     commit_hash: String,
     remote_url: String,
 ) -> Result<()> {
+
     let job_result = ej_dispatcher_sdk::dispatch_run(
         &socket,
         commit_hash,
@@ -61,6 +60,7 @@ async fn do_run(
         Duration::from_secs(seconds),
     )
     .await?;
+
     println!("{}", job_result);
 }
 ```
@@ -100,6 +100,17 @@ We're mostly interested in the `results: Vec<(EjBoardConfigApi, String)>` which 
 - The `EjBoardConfigApi` holds the config ID, name and tags
 - The `String` holds the job results. For our specific use case each `String` will have the following format. 
   This is the content of the `results_path` when the `run_script` finishes.
+
+---
+
+The `logs` are useful to see what happened between every job phase, `checkout`, `build` and `run` and they're are printed automatically when doing this:
+
+```rust
+    println!("{}", job_result);
+```
+
+---
+
 
 For our example, the results follow this format:
 
@@ -231,6 +242,8 @@ async fn do_run(
     let parsed_results = parse_results(&job_result);
     check_results(&parsed_results);
 
+    println!("Results OK!");
+
     Ok(())
 }
 ```
@@ -238,7 +251,9 @@ async fn do_run(
 ## Step 6: Add a CLI interface
 
 We'll also add a basic CLI interface that will make it easier to add new commands down the line.
+
 For this we'll use `clap` that we've already added to our project.
+
 The following code should be pretty straight forward to reason with:
 
 ```rust
@@ -292,7 +307,6 @@ You can now try your new application with the same arguments as the `ej-cli`
 
 ## Step 8: Try it out
 
-
 First, remove the `infinite-loop` config as it doesn't do anything useful.
 
 Remove this entry from `~/ej-workspace/config.toml`:
@@ -311,7 +325,11 @@ And now run your new program:
 
 ```bash
 cd ~/ej-workspace/ejkmer-dispatcher/
-cargo run -- dispatch-run --socket ~/ejd-deployment/ejd/tmp/ejd.sock --seconds 60 --commit-hash eb7c6cbe6249aff4df82455bbadf4898b0167d09 --remote-url https://github.com/embj-org/kmer
+cargo run -- dispatch-run \
+    --socket ~/ejd-deployment/ejd/tmp/ejd.sock \
+    --seconds 60 \
+    --commit-hash eb7c6cbe6249aff4df82455bbadf4898b0167d09 \
+    --remote-url https://github.com/embj-org/kmer
 ```
 
 ```bash
@@ -434,7 +452,8 @@ sys	0m0.010s
 Results OK!
 ```
 
-It's useful to print the job results as it makes it easier to debug later on.
+Seeing `Results OK!` means that the job ran succesfully and the results were as expected !
+
 
 ## What's Next
 

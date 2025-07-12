@@ -1,0 +1,5 @@
+[book]
+authors = ["André Costa"]
+language = "en"
+src = "src"
+title = "EJ Guide"

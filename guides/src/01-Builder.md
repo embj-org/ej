@@ -64,7 +64,8 @@ cd kmer
 This is to ensure everything is working properly
 
 ```bash
-cmake -B build-pi -DCMAKE_TOOLCHAIN_FILE=aarch64_toolchain.cmake
+cmake -B build-pi \
+      -DCMAKE_TOOLCHAIN_FILE=aarch64_toolchain.cmake
 cmake --build build-pi -j$(nproc)
 ```
 
@@ -73,6 +74,7 @@ cmake --build build-pi -j$(nproc)
 ```bash
 PI_USERNAME=<your_pi_username>
 PI_ADDRESS=<your_pi_ip_address>
+
 scp -r build-pi/k-mer-omp inputs ${PI_USERNAME}@${PI_ADDRESS}:~
 ssh ${PI_USERNAME}@${PI_ADDRESS} "./k-mer-omp inputs/pi_dec_1k.txt 3"
 ```
@@ -84,6 +86,8 @@ If any of these steps fail, ensure you have the correct toolchain installed and 
 Now that we've ensured everything is working, it's now time to use EJ.
 
 ## Step 2: Install EJB
+
+EJB is available in [crates.io](https://crates.io/crates/ejb) so you can install it like this:
 
 ```bash
 cargo install ejb
@@ -105,7 +109,10 @@ set -e
 SCRIPT=$(readlink -f $0)
 SCRIPTPATH=$(dirname $SCRIPT)
 
-cmake -B ${SCRIPTPATH}/kmer/build-pi -S ${SCRIPTPATH}/kmer -DCMAKE_TOOLCHAIN_FILE=${SCRIPTPATH}/kmer/aarch64_toolchain.cmake
+cmake -B ${SCRIPTPATH}/kmer/build-pi \
+      -S ${SCRIPTPATH}/kmer \
+      -DCMAKE_TOOLCHAIN_FILE=${SCRIPTPATH}/kmer/aarch64_toolchain.cmake
+
 cmake --build ${SCRIPTPATH}/kmer/build-pi -j$(nproc)
 ```
 
@@ -125,8 +132,11 @@ PI_ADDRESS=<your_pi_ip_address>
 SCRIPT=$(readlink -f $0)
 SCRIPTPATH=$(dirname $SCRIPT)
 
-scp -r ${SCRIPTPATH}/kmer/build-pi/k-mer-original ${SCRIPTPATH}/kmer/inputs ${PI_USERNAME}@${PI_ADDRESS}:~
-ssh ${PI_USERNAME}@${PI_ADDRESS} "time ./k-mer-original inputs/input.txt 3" 2>&1 | tee ${SCRIPTPATH}/results.txt
+scp -r ${SCRIPTPATH}/kmer/build-pi/k-mer-original \
+    ${SCRIPTPATH}/kmer/inputs ${PI_USERNAME}@${PI_ADDRESS}:~
+
+ssh ${PI_USERNAME}@${PI_ADDRESS} \
+    "time ./k-mer-original inputs/input.txt 3" 2>&1 | tee ${SCRIPTPATH}/results.txt
 ```
 
 ### Making Scripts Executable
@@ -166,7 +176,7 @@ library_path = "/home/<user>/ej-workspace/kmer"
 ```
 
 You may notice the board config name, the results path and the executable all have the same name.
-This is NOT necessary but will make it easier to build upon later on.
+This is NOT mandatory but will make it easier to build upon later on.
 
 ### Configuration Explanation
 
@@ -261,15 +271,17 @@ sys	0m0.005s
 We showcased a pretty simple example to see how to setup one board with one config. In reality, EJ is equipped to handle multiple 
 boards with multiple configs each.
 
-Like we discussed before, there are actually 3 versions of this software, so let's use EJ to actually test the three versions.
+The `kmer` repository contains 3 versions of the same software, so let's use EJ to actually test the three versions but before, let's look into how how EJB launches our application.
 
 
 ### Script Arguments
 
-The scripts we created were pretty basic and only do one thing. We can easily imagine this becoming cumbersome very quickly.
+The scripts we created were pretty basic and only do one thing.
+We can easily imagine this becoming cumbersome very quickly.
 
-EJ solves this problem by passing arguments to your build and run scripts:
+EJ solves this problem by having EJB launch your build and run scripts with some arguments:
 
+- `argv[0]`: Your script name
 - `argv[1]`: Action (`build` or `run`)
 - `argv[2]`: Config file path
 - `argv[3]`: Board name
@@ -279,9 +291,10 @@ EJ solves this problem by passing arguments to your build and run scripts:
 
 With these arguments, we can actually create a more sophisticated script to handle every config for us.
 
-Let's modify our `run` script to handle this for us:
+Let's modify our `run.sh` script to handle this for us:
 
 ```bash
+#!/bin/bash
 set -e
 PI_USERNAME=<your_pi_username>
 PI_ADDRESS=<your_pi_ip_address>
@@ -291,12 +304,18 @@ SCRIPTPATH=$(dirname $SCRIPT)
 
 BOARD_CONFIG_NAME=$4
 
-scp -r ${SCRIPTPATH}/kmer/build-pi/${BOARD_CONFIG_NAME} ${SCRIPTPATH}/kmer/inputs ${PI_USERNAME}@${PI_ADDRESS}:~
-ssh ${PI_USERNAME}@${PI_ADDRESS} "time ./${BOARD_CONFIG_NAME} inputs/pi_dec_1k.txt 3" 2>&1 | tee ${SCRIPTPATH}/results_${BOARD_CONFI_NAME}.txt
+scp -r ${SCRIPTPATH}/kmer/build-pi/${BOARD_CONFIG_NAME} \
+    ${SCRIPTPATH}/kmer/inputs ${PI_USERNAME}@${PI_ADDRESS}:~
+
+ssh ${PI_USERNAME}@${PI_ADDRESS} \
+    "time ./${BOARD_CONFIG_NAME} inputs/pi_dec_1k.txt 3" 2>&1 | tee ${SCRIPTPATH}/results_${BOARD_CONFI_NAME}.txt
 ```
 
-Here by using the board config name that is automatically passed by EJB,
+Here, by using the board config name that is automatically passed to us by EJB (`argv[4]`),
 we can now use the same script for every board config.
+
+This is the reason we matched the application name,
+the results path and the board config name in our `config.toml` earlier.
 
 Add these new config entries at the bottom of your `~/ej-workspace/config.toml`:
 
@@ -320,7 +339,7 @@ results_path = "/home/<user>/ej-workspace/results_k-mer-omp.txt"
 library_path = "/home/<user>/ej-workspace/kmer"
 ```
 
-Don't hesitate to use `ejb` to `parse` your config and make sure it's correctly written.
+Don't hesitate to use `ejb` to `parse` your config and make sure it can be parsed written.
 
 With this new config we can now run `ejb` again and we'll see that it runs all three configs:
 
@@ -447,20 +466,34 @@ user	0m0.005s
 sys	0m0.006s
 ```
 
-### Procedure
+### Understading what just happened
 
 When you run a job, EJB follows this process:
 
-1. **Build phase**: EJB executes each build script sequentially
-  - Build scripts are run sequentially to allow the build script to use every available core to speed up each individual building process.
-2. **Execution phase**: EJB executes each run script
-  - Run scripts are run in parallel accross different boards and sequentially for each board config.
-3. **Result collection**: EJB collects the results from the `results_path`.
-  - You can use whatever you want as a way to represent your test results, EJ will simply collect what's inside the `results_path` at the moment the `run_script` ends.
+#### 1. Build phase
+EJB executes each build script sequentially
+
+Build scripts are run **sequentially**. This allows you to use every available core to speed up your build process for each individual config.
+
+Don't share build folders for multiple configs as EJB won't run your config before every other config has finished building.
+
+#### 2. Execution phase
+EJB executes each run script
+
+Run scripts are run in **parallel** accross different boards and **sequentially** for each board config.
+
+You must not share the same results path between multiple boards to avoid race conditions.
+
+#### 3. Result collection
+EJB collects the results from the `results_path` once the run finishes. This phase happens at the
+same time as phase 2, the results are collected once the corresponding run script finishes.
+
+You can use whatever you want as a way to represent your test results,
+EJ will simply collect what's inside the `results_path` at the moment the `run_script` ends.
 
 ## Next Steps
 
 Congratulations! You now have a very simple but working EJ Builder setup which can already be used to automate your testing environnement. 
 The same way we created our Raspberry PI board, we could've just as easily added more board descriptions, there's no limit at how many boards and configs EJB can manage.
 
-The simple shell script approach altough easy to setup, it has some limitations, even for this simple example. If you can't think of any, don't worry, we'll dive into those in [Guide 02 - Builder SDK](02-BuilderSDK.md) which will present these issues and how the `Builder SDK` solves them.
+The simple shell script approach, altough easy to setup, has some limitations, even for this simple example. If you can't think of any, don't worry, we'll dive into those in [Guide 02 - Builder SDK](02-BuilderSDK.md) which will present these issues and how the `Builder SDK` solves them.
