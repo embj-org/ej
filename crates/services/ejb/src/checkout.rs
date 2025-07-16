@@ -20,7 +20,7 @@ use std::{
     sync::{Arc, atomic::AtomicBool},
 };
 use tokio::sync::mpsc::channel;
-use tracing::{debug, error, info};
+use tracing::{error, info};
 use uuid::Uuid;
 
 use crate::{builder::Builder, logs::dump_logs};
