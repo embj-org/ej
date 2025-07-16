@@ -12,6 +12,9 @@ pub enum Error {
     #[error(transparent)]
     Json(#[from] serde_json::error::Error),
 
+    #[error("Checkout Error")]
+    CheckoutError,
+
     #[error("Build Error")]
     BuildError,
 

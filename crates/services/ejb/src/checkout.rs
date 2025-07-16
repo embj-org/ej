@@ -20,7 +20,7 @@ use std::{
     sync::{Arc, atomic::AtomicBool},
 };
 use tokio::sync::mpsc::channel;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 use uuid::Uuid;
 
 use crate::{builder::Builder, logs::dump_logs};
@@ -78,25 +78,22 @@ async fn checkout(
         vec!["git", "-C", &config.library_path, "checkout", commit_hash],
     ];
 
-    for command in commands {
+    for (i, command) in commands.iter().enumerate() {
         let (tx, mut rx) = channel(10);
         let stop = Arc::new(AtomicBool::new(false));
         let runner = Runner::new(command[0], command[1..].to_vec());
-        let result = runner.run(tx, stop).await;
+        let result = tokio::spawn(async move { runner.run(tx, stop).await });
 
         while let Some(event) = rx.recv().await {
             match event {
                 RunEvent::ProcessCreationFailed(err) => {
                     error!("Failed to run command {:?} - {err}", command)
                 }
-                RunEvent::ProcessCreated => {
-                    info!("Running {}", command.join(" "));
-                }
                 RunEvent::ProcessEnd(success) => {
-                    if success {
-                        info!("Command {:?} run successfully", command);
-                    } else {
+                    // First command is always to remove the remote, so we don't fail on it
+                    if !success && i != 0 {
                         error!("Command {:?} failed", command);
+                        return Err(Error::CheckoutError);
                     }
                 }
                 RunEvent::ProcessNewOutputLine(line) => {
@@ -114,10 +111,11 @@ async fn checkout(
                         }
                     };
                 }
+                _ => {}
             }
         }
 
-        if let Some(result) = result {
+        if let Ok(result) = result.await {
             info!("Result for command {:?} {:?}", command, result);
         }
     }
