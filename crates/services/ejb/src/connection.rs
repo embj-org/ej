@@ -31,9 +31,9 @@ use futures_util::{SinkExt, StreamExt};
 use tokio::net::TcpStream;
 use tokio::task::JoinHandle;
 use tokio::time::{interval, timeout};
-use tokio_tungstenite::{connect_async, tungstenite, MaybeTlsStream, WebSocketStream};
-use tokio_tungstenite::tungstenite::{Bytes, Message};
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+use tokio_tungstenite::tungstenite::{Bytes, Message};
+use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async, tungstenite};
 use tracing::{debug, error, info, trace, warn};
 use uuid::Uuid;
 
@@ -174,7 +174,7 @@ pub async fn handle_connect(
                     error!("Failed to send heartbeat ping: {}", e);
                     break;
                 }
-                
+
                 // Check if we haven't received a pong in too long
                 if last_pong.elapsed() > connection_timeout {
                     error!("No pong received for {:?} - connection likely dead", connection_timeout);
@@ -187,7 +187,8 @@ pub async fn handle_connect(
     println!("Builder shutting down");
     Ok(())
 }
-async fn handle_message(message: tungstenite::protocol::Message,
+async fn handle_message(
+    message: tungstenite::protocol::Message,
     write: &mut SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
     config: &Arc<EjConfig>,
     builder: &Arc<Builder>,
@@ -196,180 +197,174 @@ async fn handle_message(message: tungstenite::protocol::Message,
     current_job: &mut Option<(Uuid, JoinHandle<()>, Arc<AtomicBool>)>,
     last_pong: &mut std::time::Instant,
 ) -> bool {
+    match message {
+        Message::Text(text) => {
+            info!("Received message: {}", text);
 
-        match message {
-            Message::Text(text) => {
-                info!("Received message: {}", text);
-
-                let server_message: EjWsServerMessage = match serde_json::from_str(&text) {
-                    Ok(msg) => msg,
-                    Err(e) => {
-                        error!("Failed to parse server message: {}", e);
-                        return false;
-                    }
-                };
-
-                match server_message {
-                    EjWsServerMessage::Build(job) => {
-                        if let Some(job) = current_job.take() {
-                            warn!(
-                                "Received a new build request while a job is happening. Cancelling it"
-                            );
-                            cancel_job(&builder, &job.0, job.1, job.2, EjJobCancelReason::Timeout)
-                                .await;
-                        }
-
-                        let config = Arc::clone(&config);
-                        let builder = Arc::clone(&builder);
-                        let client = Arc::clone(&client);
-                        let stop = Arc::new(AtomicBool::new(false));
-                        let t_stop = Arc::clone(&stop);
-
-                        let id = builder_api.id;
-                        let handle = tokio::spawn(async move {
-                            let mut output = EjRunOutput::new(&config);
-                            let mut result = checkout_all(
-                                &config,
-                                &job.commit_hash,
-                                &job.remote_url,
-                                job.remote_token,
-                                &mut output,
-                            )
-                            .await;
-                            if result.is_ok() {
-                                result = build(&builder, &config, &mut output, t_stop).await;
-                            }
-                            if let Err(err) = dump_logs_to_temporary_file(&output) {
-                                error!("Failed to dump logs to file - {err}");
-                            }
-                            let response = EjBuilderBuildResult {
-                                job_id: job.id,
-                                builder_id: id,
-                                logs: output.logs,
-                                successful: result.is_ok(),
-                            };
-
-                            let body = serde_json::to_string(&response);
-                            match body {
-                                Ok(body) => {
-                                    match client.post("v1/builder/build_result", body).await {
-                                        Ok(response) => info!("Build results sent {:?}", response),
-                                        Err(err) => {
-                                            /* TODO: Store the results locally to send them later */
-                                            error!("Failed to send build results {err}");
-                                        }
-                                    }
-                                }
-                                Err(err) => {
-                                    error!(
-                                        "Failed to serialize {:?} run results {}",
-                                        response, err
-                                    );
-                                }
-                            };
-                        });
-                        *current_job = Some((job.id.clone(), handle, stop));
-                    }
-                    EjWsServerMessage::BuildAndRun(job) => {
-                        if let Some(job) = current_job.take() {
-                            warn!(
-                                "Received a new build request while a job is happening. Cancelling it"
-                            );
-                            cancel_job(&builder, &job.0, job.1, job.2, EjJobCancelReason::Timeout)
-                                .await;
-                        }
-                        let config = Arc::clone(&config);
-                        let builder = Arc::clone(&builder);
-                        let client = Arc::clone(&client);
-                        let stop = Arc::new(AtomicBool::new(false));
-                        let t_stop = Arc::clone(&stop);
-                        let id = builder_api.id;
-                        let handle = tokio::spawn(async move {
-                            let mut output = EjRunOutput::new(&config);
-                            let mut result = checkout_all(
-                                &config,
-                                &job.commit_hash,
-                                &job.remote_url,
-                                job.remote_token,
-                                &mut output,
-                            )
-                            .await;
-                            if result.is_ok() {
-                                result = build(&builder, &config, &mut output, Arc::clone(&t_stop))
-                                    .await;
-                            }
-                            if result.is_ok() {
-                                result = run(&builder, &config, &mut output, t_stop).await;
-                            }
-                            if let Err(err) = dump_logs_to_temporary_file(&output) {
-                                error!("Failed to dump logs to file - {err}");
-                            }
-                            let response = EjBuilderRunResult {
-                                job_id: job.id,
-                                builder_id: id,
-                                logs: output.logs,
-                                results: output.results,
-                                successful: result.is_ok(),
-                            };
-                            let body = serde_json::to_string(&response);
-                            match body {
-                                Ok(body) => {
-                                    match client.post("v1/builder/run_result", body).await {
-                                        Ok(_) => trace!("Run results sent"),
-                                        Err(err) => {
-                                            /* TODO: Store the results locally to send them later */
-                                            error!("Failed to send run results {err}");
-                                        }
-                                    }
-                                }
-                                Err(err) => {
-                                    error!("Failed to serialize run results {}", err);
-                                }
-                            }
-                        });
-                        *current_job = Some((job.id.clone(), handle, stop));
-                    }
-                    EjWsServerMessage::Cancel(reason, job_id) => {
-                        if let Some(curr_job) = current_job.take() {
-                            if curr_job.0 == job_id {
-                                cancel_job(&builder, &curr_job.0, curr_job.1, curr_job.2, reason)
-                                    .await;
-                            } else {
-                                warn!(
-                                    "Received cancel request for a job different than the one in progress. "
-                                )
-                            }
-                        } else {
-                            info!("Received cancel request but no job is currently in progress. ")
-                        }
-                    }
-                    EjWsServerMessage::Close => {
-                        println!("Received close command from server");
-                        return true;
-                    }
-                };
-            }
-            Message::Close(_) => {
-                println!("WebSocket connection closed by server");
-                return true;
-            }
-            Message::Ping(data) => {
-                debug!("Received ping, sending pong");
-                if let Err(e) = write.send(Message::Pong(data)).await {
-                    error!("Failed to send pong: {}", e);
+            let server_message: EjWsServerMessage = match serde_json::from_str(&text) {
+                Ok(msg) => msg,
+                Err(e) => {
+                    error!("Failed to parse server message: {}", e);
+                    return false;
                 }
-            }
-            Message::Pong(_) => {
-                info!("Received pong");
-                *last_pong = std::time::Instant::now();
-            }
-            Message::Binary(_) => {
-                warn!("Received unexpected binary message");
-            }
-            Message::Frame(_) => {
-                debug!("Received raw frame message");
-            }
+            };
 
+            match server_message {
+                EjWsServerMessage::Build(job) => {
+                    if let Some(job) = current_job.take() {
+                        warn!(
+                            "Received a new build request while a job is happening. Cancelling it"
+                        );
+                        cancel_job(&builder, &job.0, job.1, job.2, EjJobCancelReason::Timeout)
+                            .await;
+                    }
+
+                    let config = Arc::clone(&config);
+                    let builder = Arc::clone(&builder);
+                    let client = Arc::clone(&client);
+                    let stop = Arc::new(AtomicBool::new(false));
+                    let t_stop = Arc::clone(&stop);
+
+                    let id = builder_api.id;
+                    let handle = tokio::spawn(async move {
+                        let mut output = EjRunOutput::new(&config);
+                        let mut result = checkout_all(
+                            &config,
+                            &job.commit_hash,
+                            &job.remote_url,
+                            job.remote_token,
+                            &mut output,
+                        )
+                        .await;
+                        if result.is_ok() {
+                            result = build(&builder, &config, &mut output, t_stop).await;
+                        }
+                        if let Err(err) = dump_logs_to_temporary_file(&output) {
+                            error!("Failed to dump logs to file - {err}");
+                        }
+                        let response = EjBuilderBuildResult {
+                            job_id: job.id,
+                            builder_id: id,
+                            logs: output.logs,
+                            successful: result.is_ok(),
+                        };
+
+                        let body = serde_json::to_string(&response);
+                        match body {
+                            Ok(body) => {
+                                match client.post("v1/builder/build_result", body).await {
+                                    Ok(response) => info!("Build results sent {:?}", response),
+                                    Err(err) => {
+                                        /* TODO: Store the results locally to send them later */
+                                        error!("Failed to send build results {err}");
+                                    }
+                                }
+                            }
+                            Err(err) => {
+                                error!("Failed to serialize {:?} run results {}", response, err);
+                            }
+                        };
+                    });
+                    *current_job = Some((job.id.clone(), handle, stop));
+                }
+                EjWsServerMessage::BuildAndRun(job) => {
+                    if let Some(job) = current_job.take() {
+                        warn!(
+                            "Received a new build request while a job is happening. Cancelling it"
+                        );
+                        cancel_job(&builder, &job.0, job.1, job.2, EjJobCancelReason::Timeout)
+                            .await;
+                    }
+                    let config = Arc::clone(&config);
+                    let builder = Arc::clone(&builder);
+                    let client = Arc::clone(&client);
+                    let stop = Arc::new(AtomicBool::new(false));
+                    let t_stop = Arc::clone(&stop);
+                    let id = builder_api.id;
+                    let handle = tokio::spawn(async move {
+                        let mut output = EjRunOutput::new(&config);
+                        let mut result = checkout_all(
+                            &config,
+                            &job.commit_hash,
+                            &job.remote_url,
+                            job.remote_token,
+                            &mut output,
+                        )
+                        .await;
+                        if result.is_ok() {
+                            result =
+                                build(&builder, &config, &mut output, Arc::clone(&t_stop)).await;
+                        }
+                        if result.is_ok() {
+                            result = run(&builder, &config, &mut output, t_stop).await;
+                        }
+                        if let Err(err) = dump_logs_to_temporary_file(&output) {
+                            error!("Failed to dump logs to file - {err}");
+                        }
+                        let response = EjBuilderRunResult {
+                            job_id: job.id,
+                            builder_id: id,
+                            logs: output.logs,
+                            results: output.results,
+                            successful: result.is_ok(),
+                        };
+                        let body = serde_json::to_string(&response);
+                        match body {
+                            Ok(body) => {
+                                match client.post("v1/builder/run_result", body).await {
+                                    Ok(_) => trace!("Run results sent"),
+                                    Err(err) => {
+                                        /* TODO: Store the results locally to send them later */
+                                        error!("Failed to send run results {err}");
+                                    }
+                                }
+                            }
+                            Err(err) => {
+                                error!("Failed to serialize run results {}", err);
+                            }
+                        }
+                    });
+                    *current_job = Some((job.id.clone(), handle, stop));
+                }
+                EjWsServerMessage::Cancel(reason, job_id) => {
+                    if let Some(curr_job) = current_job.take() {
+                        if curr_job.0 == job_id {
+                            cancel_job(&builder, &curr_job.0, curr_job.1, curr_job.2, reason).await;
+                        } else {
+                            warn!(
+                                "Received cancel request for a job different than the one in progress. "
+                            )
+                        }
+                    } else {
+                        info!("Received cancel request but no job is currently in progress. ")
+                    }
+                }
+                EjWsServerMessage::Close => {
+                    println!("Received close command from server");
+                    return true;
+                }
+            };
+        }
+        Message::Close(_) => {
+            println!("WebSocket connection closed by server");
+            return true;
+        }
+        Message::Ping(data) => {
+            debug!("Received ping, sending pong");
+            if let Err(e) = write.send(Message::Pong(data)).await {
+                error!("Failed to send pong: {}", e);
+            }
+        }
+        Message::Pong(_) => {
+            info!("Received pong");
+            *last_pong = std::time::Instant::now();
+        }
+        Message::Binary(_) => {
+            warn!("Received unexpected binary message");
+        }
+        Message::Frame(_) => {
+            debug!("Received raw frame message");
+        }
     }
     return false;
 }
