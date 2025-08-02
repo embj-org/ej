@@ -26,11 +26,13 @@ use ej_dispatcher_sdk::ejjob::EjJobCancelReason;
 use ej_dispatcher_sdk::ejjob::results::{EjBuilderBuildResult, EjBuilderRunResult};
 use ej_dispatcher_sdk::ejws_message::EjWsServerMessage;
 use ej_requests::ApiClient;
+use futures_util::stream::SplitSink;
 use futures_util::{SinkExt, StreamExt};
+use tokio::net::TcpStream;
 use tokio::task::JoinHandle;
-use tokio::time::timeout;
-use tokio_tungstenite::connect_async;
-use tokio_tungstenite::tungstenite::Message;
+use tokio::time::{interval, timeout};
+use tokio_tungstenite::{connect_async, tungstenite, MaybeTlsStream, WebSocketStream};
+use tokio_tungstenite::tungstenite::{Bytes, Message};
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tracing::{debug, error, info, trace, warn};
 use uuid::Uuid;
@@ -134,23 +136,76 @@ pub async fn handle_connect(
     let config = Arc::new(config);
     let builder = Arc::new(builder);
     let client = Arc::new(client);
+    let mut heartbeat_interval = interval(Duration::from_secs(30));
+    let mut last_pong = std::time::Instant::now();
+    let connection_timeout = Duration::from_secs(60);
 
-    while let Some(message) = read.next().await {
-        if let Some(ref job) = current_job {
-            if job.1.is_finished() {
-                current_job = None;
+    loop {
+        tokio::select! {
+            message_result = timeout(Duration::from_secs(5), read.next()) => {
+                match message_result {
+                    Ok(Some(message)) => {
+                            if let Some(ref job) = current_job {
+                                if job.1.is_finished() {
+                                    current_job = None;
+                                }
+                            }
+                            let close = handle_message(message?, &mut write, &config, &builder, &client, &builder_api, &mut current_job, &mut last_pong).await;
+                            if close {
+                                break;
+                            }
+                        }
+                    Ok(None) => {
+                        warn!("WebSocket stream ended (received None)");
+                        break;
+                    }
+                    Err(err) => {
+                        debug!("Message timeout - checking connection health - {err}");
+                        if last_pong.elapsed() > connection_timeout {
+                            error!("Connection appears dead - no pong received for {:?}", connection_timeout);
+                            break;
+                        }
+                    }
+                }
+            }
+            _ = heartbeat_interval.tick() => {
+                debug!("Sending heartbeat ping");
+                if let Err(e) = write.send(Message::Ping(Bytes::new())).await {
+                    error!("Failed to send heartbeat ping: {}", e);
+                    break;
+                }
+                
+                // Check if we haven't received a pong in too long
+                if last_pong.elapsed() > connection_timeout {
+                    error!("No pong received for {:?} - connection likely dead", connection_timeout);
+                    break;
+                }
             }
         }
+    }
+
+    println!("Builder shutting down");
+    Ok(())
+}
+async fn handle_message(message: tungstenite::protocol::Message,
+    write: &mut SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
+    config: &Arc<EjConfig>,
+    builder: &Arc<Builder>,
+    client: &Arc<ApiClient>,
+    builder_api: &EjBuilderApi,
+    current_job: &mut Option<(Uuid, JoinHandle<()>, Arc<AtomicBool>)>,
+    last_pong: &mut std::time::Instant,
+) -> bool {
 
         match message {
-            Ok(Message::Text(text)) => {
+            Message::Text(text) => {
                 info!("Received message: {}", text);
 
                 let server_message: EjWsServerMessage = match serde_json::from_str(&text) {
                     Ok(msg) => msg,
                     Err(e) => {
                         error!("Failed to parse server message: {}", e);
-                        continue;
+                        return false;
                     }
                 };
 
@@ -170,6 +225,7 @@ pub async fn handle_connect(
                         let stop = Arc::new(AtomicBool::new(false));
                         let t_stop = Arc::clone(&stop);
 
+                        let id = builder_api.id;
                         let handle = tokio::spawn(async move {
                             let mut output = EjRunOutput::new(&config);
                             let mut result = checkout_all(
@@ -188,7 +244,7 @@ pub async fn handle_connect(
                             }
                             let response = EjBuilderBuildResult {
                                 job_id: job.id,
-                                builder_id: builder_api.id,
+                                builder_id: id,
                                 logs: output.logs,
                                 successful: result.is_ok(),
                             };
@@ -212,7 +268,7 @@ pub async fn handle_connect(
                                 }
                             };
                         });
-                        current_job = Some((job.id.clone(), handle, stop));
+                        *current_job = Some((job.id.clone(), handle, stop));
                     }
                     EjWsServerMessage::BuildAndRun(job) => {
                         if let Some(job) = current_job.take() {
@@ -227,6 +283,7 @@ pub async fn handle_connect(
                         let client = Arc::clone(&client);
                         let stop = Arc::new(AtomicBool::new(false));
                         let t_stop = Arc::clone(&stop);
+                        let id = builder_api.id;
                         let handle = tokio::spawn(async move {
                             let mut output = EjRunOutput::new(&config);
                             let mut result = checkout_all(
@@ -249,7 +306,7 @@ pub async fn handle_connect(
                             }
                             let response = EjBuilderRunResult {
                                 job_id: job.id,
-                                builder_id: builder_api.id,
+                                builder_id: id,
                                 logs: output.logs,
                                 results: output.results,
                                 successful: result.is_ok(),
@@ -270,7 +327,7 @@ pub async fn handle_connect(
                                 }
                             }
                         });
-                        current_job = Some((job.id.clone(), handle, stop));
+                        *current_job = Some((job.id.clone(), handle, stop));
                     }
                     EjWsServerMessage::Cancel(reason, job_id) => {
                         if let Some(curr_job) = current_job.take() {
@@ -288,38 +345,33 @@ pub async fn handle_connect(
                     }
                     EjWsServerMessage::Close => {
                         println!("Received close command from server");
-                        break;
+                        return true;
                     }
                 };
             }
-            Ok(Message::Close(_)) => {
+            Message::Close(_) => {
                 println!("WebSocket connection closed by server");
-                break;
+                return true;
             }
-            Ok(Message::Ping(data)) => {
+            Message::Ping(data) => {
                 debug!("Received ping, sending pong");
                 if let Err(e) = write.send(Message::Pong(data)).await {
                     error!("Failed to send pong: {}", e);
                 }
             }
-            Ok(Message::Pong(_)) => {
-                debug!("Received pong");
+            Message::Pong(_) => {
+                info!("Received pong");
+                *last_pong = std::time::Instant::now();
             }
-            Ok(Message::Binary(_)) => {
+            Message::Binary(_) => {
                 warn!("Received unexpected binary message");
             }
-            Ok(Message::Frame(_)) => {
+            Message::Frame(_) => {
                 debug!("Received raw frame message");
             }
-            Err(e) => {
-                error!("WebSocket error: {}", e);
-                break;
-            }
-        }
-    }
 
-    println!("Builder shutting down");
-    Ok(())
+    }
+    return false;
 }
 async fn cancel_job(
     builder: &Builder,
