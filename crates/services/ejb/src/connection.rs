@@ -356,7 +356,7 @@ async fn handle_message(
             }
         }
         Message::Pong(_) => {
-            info!("Received pong");
+            debug!("Received pong");
             *last_pong = std::time::Instant::now();
         }
         Message::Binary(_) => {
