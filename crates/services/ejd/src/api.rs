@@ -4,7 +4,7 @@ use axum::{
     Json, Router,
     body::Bytes,
     extract::{
-        State,
+        DefaultBodyLimit, State,
         ws::{Message, Utf8Bytes, WebSocket, WebSocketUpgrade},
     },
     middleware,
@@ -117,6 +117,7 @@ pub async fn setup_api(dispatcher: Dispatcher) -> Result<JoinHandle<Result<()>>>
             mw_ctx_resolver,
         ))
         .layer(CookieManagerLayer::new())
+        .layer(DefaultBodyLimit::max(10 * 1024 * 1024))
         .with_state(dispatcher);
 
     // run it with hyper
