@@ -36,6 +36,7 @@ use ej_web::{
 use tokio::{sync::mpsc::channel, task::JoinHandle};
 use tower_cookies::{CookieManagerLayer, Cookies};
 use tracing::{error, info};
+use uuid::Uuid;
 
 use std::net::SocketAddr;
 use tower_http::{
@@ -256,33 +257,25 @@ async fn builder_handler(
 /// RAII guard to automatically remove builders from the dispatcher when connections close.
 struct BuilderGuard {
     dispatcher: Dispatcher,
-    index: usize,
+    connection_id: Uuid,
 }
 
 impl Drop for BuilderGuard {
     /// Automatically removes the builder from the dispatcher's builder list when dropped.
     fn drop(&mut self) {
         let builders = self.dispatcher.builders.clone();
-        let index = self.index;
+        let connection_id = self.connection_id;
         tokio::spawn(async move {
-            builders.lock().await.remove(index);
+            builders
+                .lock()
+                .await
+                .retain(|b| b.connection_id != connection_id);
         });
     }
 }
 /// Actual websocket statemachine (one will be spawned per connection)
 async fn handle_socket(ctx: Ctx, dispatcher: Dispatcher, mut socket: WebSocket, addr: SocketAddr) {
     let (tx, mut rx) = channel(2);
-
-    let builder_index = {
-        let mut builders = dispatcher.builders.lock().await;
-        builders.push(ctx.client.connect(tx.clone(), addr));
-        builders.len() - 1
-    };
-
-    let _guard = BuilderGuard {
-        dispatcher: dispatcher.clone(),
-        index: builder_index,
-    };
 
     if socket
         .send(Message::Ping(Bytes::from_static(&[1, 2, 3])))
@@ -304,6 +297,19 @@ async fn handle_socket(ctx: Ctx, dispatcher: Dispatcher, mut socket: WebSocket, 
             return;
         }
     }
+
+    let connection_id = {
+        let mut builders = dispatcher.builders.lock().await;
+        let connected_client = ctx.client.connect(tx.clone(), addr);
+        let connection_id = connected_client.connection_id.clone();
+        builders.push(connected_client);
+        connection_id
+    };
+
+    let _guard = BuilderGuard {
+        dispatcher: dispatcher.clone(),
+        connection_id,
+    };
 
     let (mut sender, mut receiver) = socket.split();
 

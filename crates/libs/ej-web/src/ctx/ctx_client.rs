@@ -99,6 +99,7 @@ impl CtxClient {
             builder: self,
             tx,
             addr,
+            connection_id: Uuid::new_v4(),
         }
     }
 }
