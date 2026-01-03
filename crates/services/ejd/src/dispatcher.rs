@@ -889,6 +889,7 @@ mod test {
             builder: CtxClient { id: builder_id },
             tx,
             addr: SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(10, 0, 0, 2), 11111)),
+            connection_id: Uuid::new_v4(),
         }
     }
 
