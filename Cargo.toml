@@ -22,7 +22,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.5.10"
+version = "0.5.11"
 authors = ["André Costa andre_miguel_costa@hotmail.com"]
 edition = "2024"
 license = "MIT"
