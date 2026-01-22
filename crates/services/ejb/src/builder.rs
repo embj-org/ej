@@ -15,7 +15,7 @@ use std::{
     },
 };
 use tokio::{
-    io::AsyncWriteExt,
+    io::{AsyncReadExt, AsyncWriteExt},
     net::UnixStream,
     sync::{broadcast, mpsc},
     task::JoinHandle,
@@ -138,17 +138,50 @@ impl Builder {
         stream: UnixStream,
         mut rx: broadcast::Receiver<BuilderEvent>,
     ) -> Result<()> {
-        let (_, mut writer) = stream.into_split();
+        let (mut reader, mut writer) = stream.into_split();
+        let mut buf = [0u8; 1];
 
-        while let Ok(message) = rx.recv().await {
-            let serialized_response = serde_json::to_string(&message)?;
-            writer.write_all(serialized_response.as_bytes()).await?;
-            writer.write_all(b"\n").await?;
-            if matches!(message, BuilderEvent::Exit) {
-                info!("Received exit message, closing connection");
-                break;
+        loop {
+            tokio::select! {
+                // Monitor socket - if client closes, read returns Ok(0) or Err
+                read_result = reader.read(&mut buf) => {
+                    match read_result? {
+                        0 => { return Ok(()); }
+                        _ => { /* Client sent unexpected data, ignore it.*/ }
+                    }
+                }
+
+                recv_result = rx.recv() => {
+                    match recv_result {
+                        Ok(message) => {
+                            let serialized_response = serde_json::to_string(&message)?;
+
+                            if let Err(e) = writer.write_all(serialized_response.as_bytes()).await {
+                                info!("Write failed: {}, client likely disconnected", e);
+                                break;
+                            }
+                            if let Err(e) = writer.write_all(b"\n").await {
+                                info!("Write newline failed: {}", e);
+                                break;
+                            }
+
+                            if matches!(message, BuilderEvent::Exit) {
+                                info!("Received exit message, closing connection");
+                                break;
+                            }
+                        }
+                        Err(broadcast::error::RecvError::Lagged(n)) => {
+                            warn!("Receiver lagged, missed {} messages", n);
+                        }
+                        Err(broadcast::error::RecvError::Closed) => {
+                            info!("Broadcast channel closed");
+                            break;
+                        }
+                    }
+                }
             }
         }
+
         Ok(())
     }
 }
