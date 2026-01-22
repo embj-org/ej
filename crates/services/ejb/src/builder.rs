@@ -9,13 +9,17 @@ use ej_builder_sdk::BuilderEvent;
 use ej_config::ej_config::{EjConfig, EjUserConfig};
 use futures_util::lock::Mutex;
 use std::{
+    collections::HashMap,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicU32, Ordering},
+    },
 };
 use tokio::{
     io::AsyncWriteExt,
     net::UnixStream,
-    sync::mpsc::{Receiver, Sender, channel},
+    sync::{broadcast, mpsc},
     task::JoinHandle,
 };
 use tracing::{error, info, warn};
@@ -60,7 +64,7 @@ impl Builder {
     pub async fn create(config_path: PathBuf, socket_path: PathBuf) -> Result<Self> {
         let config = EjUserConfig::from_file(&config_path)?;
         let config = EjConfig::from_user_config(config);
-        let (tx, rx) = channel(32);
+        let (tx, rx) = mpsc::channel(32);
 
         Builder::start_thread(rx, &socket_path).await?;
         let config_path_str = config_path
@@ -81,63 +85,48 @@ impl Builder {
     }
 
     async fn start_thread(
-        mut rx: Receiver<BuilderEvent>,
+        mut rx: mpsc::Receiver<BuilderEvent>,
         socket_path: &Path,
     ) -> Result<JoinHandle<()>> {
         let _ = std::fs::remove_file(&socket_path);
         let listener = tokio::net::UnixListener::bind(socket_path)?;
-        let channels = Arc::new(Mutex::new(Vec::<Sender<BuilderEvent>>::new()));
-        let t_channels = channels.clone();
+        let (broadcast_tx, _) = broadcast::channel::<BuilderEvent>(100);
+        let bc_tx = broadcast_tx.clone();
+
         tokio::spawn(async move {
             while let Some(message) = rx.recv().await {
-                info!("New Builder Message. Message {:?}", message,);
+                info!("Broadcasting message: {:?}", message);
 
-                let mut to_remove = Vec::new();
-                let mut t_channels = t_channels.lock().await;
-
-                for (index, tx) in t_channels.iter().enumerate() {
-                    if let Err(err) = tx.send(message.clone()).await {
-                        warn!("Failed to send message to {err}");
-                        to_remove.push(index);
-                    }
-                }
-                // Remove failed channels in reverse order to maintain indices
-                for &index in to_remove.iter().rev() {
-                    t_channels.remove(index);
+                match bc_tx.send(message.clone()) {
+                    Ok(n) => info!("Sent to {} receivers", n),
+                    Err(_) => warn!("No active receivers"),
                 }
 
-                // If this was an Exit message, break the loop
                 if matches!(message, BuilderEvent::Exit) {
-                    info!("Exit message processed, shutting down message broadcaster");
                     break;
                 }
             }
         });
 
         Ok(tokio::spawn(async move {
-            let mut connection_count = 0;
+            let connection_count: Arc<AtomicU32> = Arc::new(AtomicU32::new(0));
             loop {
                 match listener.accept().await {
                     Ok((stream, _)) => {
-                        let id = connection_count;
-                        connection_count += 1;
-                        let (tx, rx) = channel(2);
-                        let channels = channels.clone();
+                        let id = connection_count.clone().load(Ordering::Relaxed);
+                        connection_count.fetch_add(1, Ordering::Relaxed);
+
+                        let c_count = connection_count.clone();
+                        let rx = broadcast_tx.subscribe();
                         tokio::spawn(async move {
-                            let index = {
-                                let mut channels = channels.lock().await;
-                                channels.push(tx);
-                                channels.len() - 1
-                            };
-                            info!(
-                                "New socket connection {id}. # Connected clients {}",
-                                index + 1
-                            );
+                            info!("New socket connection {id}");
+
                             if let Err(e) = Builder::handle_connection(stream, rx).await {
                                 error!("Error handling client: {}", e);
                             }
+
                             info!("Socket connection {id} ended");
-                            // Channel deletion will be handled by broadcaster
+                            c_count.fetch_sub(1, Ordering::Relaxed);
                         });
                     }
                     Err(e) => {
@@ -147,10 +136,13 @@ impl Builder {
             }
         }))
     }
-    async fn handle_connection(stream: UnixStream, mut rx: Receiver<BuilderEvent>) -> Result<()> {
+    async fn handle_connection(
+        stream: UnixStream,
+        mut rx: broadcast::Receiver<BuilderEvent>,
+    ) -> Result<()> {
         let (_, mut writer) = stream.into_split();
 
-        while let Some(message) = rx.recv().await {
+        while let Ok(message) = rx.recv().await {
             let serialized_response = serde_json::to_string(&message)?;
             writer.write_all(serialized_response.as_bytes()).await?;
             writer.write_all(b"\n").await?;
