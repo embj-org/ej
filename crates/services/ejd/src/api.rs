@@ -4,19 +4,20 @@ use axum::{
     Json, Router,
     body::Bytes,
     extract::{
-        State,
+        Query, State,
         ws::{Message, Utf8Bytes, WebSocket, WebSocketUpgrade},
     },
     middleware,
     response::IntoResponse,
-    routing::{any, post},
+    routing::{any, get, post},
 };
 use ej_config::ej_config::{EjConfig, EjUserConfig};
 use ej_dispatcher_sdk::{
+    EjRunResult,
     ejbuilder::EjBuilderApi,
     ejclient::{EjClientApi, EjClientLogin, EjClientLoginRequest, EjClientPost},
     ejjob::{
-        EjDeployableJob, EjJob,
+        EjDeployableJob, EjJob, EjJobApi, EjJobQuery, EjRunResultQuery,
         results::{EjBuilderBuildResult, EjBuilderRunResult},
     },
     ejws_message::{EjWsClientMessage, EjWsServerMessage},
@@ -28,7 +29,7 @@ use ej_web::{
     },
     ejclient::create_client,
     ejconfig::save_config,
-    ejjob::create_job,
+    ejjob::{create_job, query_jobs, query_run_result},
     mw_auth::mw_require_auth,
     require_permission,
     traits::job_result::EjJobResult,
@@ -90,6 +91,11 @@ pub async fn setup_api(dispatcher: Dispatcher) -> Result<JoinHandle<Result<()>>>
     let client_dispatch_routes = Router::new()
         .route(&v1("client/dispatch"), post(dispatch_job))
         .route_layer(require_permission!("client.dispatch"))
+        .route_layer(middleware::from_fn(mw_require_auth));
+
+    let client_dispatch_routes = Router::new()
+        .route(&v1("job"), get(get_jobs))
+        .route(&v1("job/result"), get(get_job_results))
         .route_layer(middleware::from_fn(mw_require_auth));
 
     let client_create_routes = Router::new()
@@ -214,6 +220,24 @@ async fn push_config(
     let config = EjConfig::from_user_config(payload);
     let config = save_config(config, &ctx.client.id, &mut state.connection)?;
     Ok(Json(config))
+}
+
+/// Get a list of jobs
+async fn get_jobs(
+    State(dispatcher): State<Dispatcher>,
+    Query(query): Query<EjJobQuery>,
+) -> EjWebResult<Json<Vec<EjJobApi>>> {
+    let jobs = query_jobs(&query, &dispatcher.connection)?;
+    Ok(Json(jobs.collect()))
+}
+
+/// Get a list of jobs
+async fn get_run_result(
+    State(dispatcher): State<Dispatcher>,
+    Query(query): Query<EjRunResultQuery>,
+) -> EjWebResult<Json<EjRunResult>> {
+    let result = query_run_result(&query, &dispatcher.connection)?;
+    Ok(Json(result))
 }
 
 /// Handles job result submissions from builders.

@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::{
     EjRunResult,
-    ejjob::EjJobApi,
+    ejjob::{EjJobApi, EjRunResultQuery},
     ejsocket_message::{EjSocketClientMessage, EjSocketServerMessage},
     prelude::*,
     socket,
@@ -14,7 +14,7 @@ use crate::{
 use std::path::Path;
 pub async fn fetch_run_result(socket_path: &Path, job_id: Uuid) -> Result<EjRunResult> {
     let mut stream = UnixStream::connect(socket_path).await?;
-    let message = EjSocketClientMessage::FetchJobResults { job_id };
+    let message = EjSocketClientMessage::FetchJobResults(EjRunResultQuery { job_id });
     socket::send(&mut stream, message).await?;
     let message = socket::receive(&mut stream).await?;
 

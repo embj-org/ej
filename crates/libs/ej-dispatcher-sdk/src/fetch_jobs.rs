@@ -4,7 +4,7 @@ use tokio::{
 };
 
 use crate::{
-    ejjob::EjJobApi,
+    ejjob::{EjJobApi, EjJobQuery},
     ejsocket_message::{EjSocketClientMessage, EjSocketServerMessage},
     prelude::*,
     socket,
@@ -12,7 +12,7 @@ use crate::{
 use std::path::Path;
 pub async fn fetch_jobs(socket_path: &Path, commit_hash: String) -> Result<Vec<EjJobApi>> {
     let mut stream = UnixStream::connect(socket_path).await?;
-    let message = EjSocketClientMessage::FetchJobs { commit_hash };
+    let message = EjSocketClientMessage::FetchJobs(EjJobQuery { commit_hash });
     socket::send(&mut stream, message).await?;
     let message: EjSocketServerMessage = socket::receive(&mut stream).await?;
 

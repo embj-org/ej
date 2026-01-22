@@ -8,7 +8,7 @@ use uuid::Uuid;
 use crate::{
     EjRunResult,
     ejclient::{EjClientApi, EjClientPost},
-    ejjob::{EjDeployableJob, EjJob, EjJobApi, EjJobUpdate},
+    ejjob::{EjDeployableJob, EjJob, EjJobApi, EjJobQuery, EjJobUpdate, EjRunResultQuery},
 };
 
 /// Messages sent from client to dispatcher via Unix socket.
@@ -24,10 +24,10 @@ pub enum EjSocketClientMessage {
         timeout: Duration,
     },
     /// Fetch jobs associated to a commit hash
-    FetchJobs { commit_hash: String },
+    FetchJobs(EjJobQuery),
 
     /// Fetch job results associated to this id
-    FetchJobResults { job_id: Uuid },
+    FetchJobResults(EjRunResultQuery),
 }
 
 /// Messages sent from dispatcher to client via Unix socket.

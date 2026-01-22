@@ -56,6 +56,20 @@ impl From<i32> for EjJobStatus {
     }
 }
 
+/// Parameters to query jobs.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EjJobQuery {
+    /// The commit hash associated with the jobs.
+    pub commit_hash: String,
+}
+
+/// Parameters to query job results.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EjRunResultQuery {
+    /// The job id associated with with results.
+    pub job_id: Uuid,
+}
+
 /// Job configuration for the dispatcher.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EjJob {

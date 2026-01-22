@@ -1,21 +1,29 @@
 //! Job management utilities for web handlers.
 
-use ej_dispatcher_sdk::ejjob::{
-    EjDeployableJob, EjJob, EjJobApi, EjJobType,
-    results::{EjBuilderBuildResult, EjBuilderRunResult},
+use std::collections::HashMap;
+
+use ej_dispatcher_sdk::{
+    EjRunResult,
+    ejjob::{
+        EjDeployableJob, EjJob, EjJobApi, EjJobQuery, EjJobType, EjRunResultQuery,
+        results::{EjBuilderBuildResult, EjBuilderRunResult},
+    },
 };
 use ej_models::{
     db::connection::DbConnection,
     job::{
         ejjob::{EjJobCreate, EjJobDb},
-        ejjob_logs::EjJobLogCreate,
-        ejjob_results::EjJobResultCreate,
+        ejjob_logs::{EjJobLog, EjJobLogCreate},
+        ejjob_results::{EjJobResultCreate, EjJobResultDb},
         ejjob_status::EjJobStatus,
     },
 };
 use uuid::Uuid;
 
-use crate::{error::Error, prelude::*, traits::job_result::EjJobResult};
+use crate::{
+    ejconfig::board_config_db_to_board_config_api, error::Error, prelude::*,
+    traits::job_result::EjJobResult,
+};
 
 /// Creates a new job from the provided job data.
 ///
@@ -56,6 +64,48 @@ pub fn create_job(ejjob: EjJob, connection: &mut DbConnection) -> Result<EjDeplo
         commit_hash: job.commit_hash,
         remote_url: job.remote_url,
         remote_token: ejjob.remote_token,
+    })
+}
+
+pub fn query_jobs(
+    query: &EjJobQuery,
+    connection: &DbConnection,
+) -> Result<impl Iterator<Item = EjJobApi>> {
+    let jobs = EjJobDb::fetch_by_commit_hash(&query.commit_hash, &connection)?;
+    let jobs = jobs.into_iter().map(|job| {
+        let wjob: W<EjJobApi> = job.into();
+        wjob.0
+    });
+    Ok(jobs)
+}
+
+pub fn query_run_result(
+    query: &EjRunResultQuery,
+    connection: &DbConnection,
+) -> Result<EjRunResult> {
+    let job = EjJobDb::fetch_by_id(&query.job_id, &connection)?;
+    let logsdb = EjJobLog::fetch_with_board_config_by_job_id(&query.job_id, &connection)?;
+    let resultsdb = EjJobResultDb::fetch_with_board_config_by_job_id(&query.job_id, &connection)?;
+    let mut logs = Vec::new();
+    let mut results = Vec::new();
+    let mut configs = HashMap::new();
+    for (logdb, board_config_db) in logsdb {
+        let config_api = board_config_db_to_board_config_api(board_config_db, &connection)?;
+        configs.insert(config_api.id, config_api.clone());
+        logs.push((config_api, logdb.log));
+    }
+    for (resultdb, board_config_db) in resultsdb {
+        let config_api = match configs.get(&board_config_db.id) {
+            Some(config) => config.clone(),
+            None => board_config_db_to_board_config_api(board_config_db, &connection)?,
+        };
+        results.push((config_api, resultdb.result));
+    }
+
+    Ok(EjRunResult {
+        logs,
+        results,
+        success: job.status == EjJobStatus::success(),
     })
 }
 
